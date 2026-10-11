@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="de" data-material="grass">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#15171c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AutoClicker">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>AutoClicker v6</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--APP-->
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <img class="logo" src="icon.svg" alt="" width="34" height="34">
+      <div class="brand-text">
+        <span class="brand-name">AutoClicker</span>
+        <span class="brand-sub">v6 · Block Edition</span>
+      </div>
+    </div>
+    <div class="profiles" id="profiles" role="tablist" aria-label="Profile"></div>
+    <div class="conn" id="conn" title="Verbindung">
+      <span class="conn-dot"></span><span id="conn-text">Verbinde …</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ───────── HUD ───────── -->
+    <section class="hud raised" aria-label="Status">
+      <div class="hud-top">
+        <span class="pill" id="pill">AUS</span>
+        <span class="hud-mode" id="hud-mode">Links · Umschalten</span>
+      </div>
+
+      <div class="cps-wrap">
+        <div class="cps-big"><span id="cps">0</span><small>CPS</small></div>
+        <div class="cps-target" id="cps-target">Ziel 10 CPS</div>
+        <div class="countdown" id="countdown" hidden><span id="countdown-num">3</span><small>Start gleich – Maus ins Spiel!</small></div>
+      </div>
+
+      <div class="graph slot">
+        <canvas id="graph" aria-label="CPS der letzten 30 Sekunden"></canvas>
+        <span class="graph-label">letzte 30 s</span>
+      </div>
+
+      <div class="xp" id="xp">
+        <div class="xp-level" id="xp-level">0</div>
+        <div class="xp-bar"><div class="xp-fill" id="xp-fill"></div></div>
+        <div class="xp-caption" id="xp-caption">Level 0 · 0 / 100 Klicks</div>
+      </div>
+
+      <div class="stats">
+        <div class="stat slot"><span class="stat-v" id="st-session">0</span><span class="stat-k">Klicks</span></div>
+        <div class="stat slot"><span class="stat-v" id="st-best">0</span><span class="stat-k">Rekord CPS</span></div>
+        <div class="stat slot"><span class="stat-v" id="st-time">0:00</span><span class="stat-k">Laufzeit</span></div>
+        <div class="stat slot"><span class="stat-v" id="st-life">0</span><span class="stat-k">Gesamt</span></div>
+      </div>
+
+      <button class="mega" id="mega" type="button">
+        <span class="mega-label" id="mega-label">START</span>
+        <kbd class="mega-key" id="mega-key">F6</kbd>
+      </button>
+      <p class="hud-hint" id="hud-hint">Hotkey drücken – auch während Minecraft im Vordergrund ist.</p>
+      <button class="linkish" id="reset-stats" type="button">Statistik zurücksetzen</button>
+    </section>
+
+    <!-- ───────── Einstellungen ───────── -->
+    <section class="panel raised" aria-label="Einstellungen">
+      <nav class="tabs" role="tablist">
+        <button role="tab" class="tab" data-tab="click" aria-selected="true" id="tab-click">Klicken</button>
+        <button role="tab" class="tab" data-tab="keys" aria-selected="false" id="tab-keys">Hotkeys</button>
+        <button role="tab" class="tab" data-tab="smart" aria-selected="false" id="tab-smart">Smart</button>
+        <button role="tab" class="tab" data-tab="phone" aria-selected="false" id="tab-phone">Handy</button>
+      </nav>
+
+      <!-- Klicken -->
+      <div class="tab-body" data-body="click">
+        <div class="group">
+          <h3>Maustaste</h3>
+          <div class="seg seg-3" id="button-seg">
+            <button type="button" data-val="left" id="btn-left"><svg viewBox="0 0 12 16" class="mouse-ico"><use href="#mouse-l"></use></svg>Links</button>
+            <button type="button" data-val="middle" id="btn-middle"><svg viewBox="0 0 12 16" class="mouse-ico"><use href="#mouse-m"></use></svg>Mitte</button>
+            <button type="button" data-val="right" id="btn-right"><svg viewBox="0 0 12 16" class="mouse-ico"><use href="#mouse-r"></use></svg>Rechts</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>Modus</h3>
+          <div class="modes" id="mode-seg">
+            <button type="button" class="mode slot" data-val="toggle" id="mode-toggle">
+              <b>Umschalten</b><span>Hotkey drückt an und aus</span>
+            </button>
+            <button type="button" class="mode slot" data-val="hold_mouse" id="mode-hold-mouse">
+              <b>Maus halten</b><span>An + Maustaste halten = Autoklick</span>
+            </button>
+            <button type="button" class="mode slot" data-val="hold_key" id="mode-hold-key">
+              <b>Taste halten</b><span>Klickt, solange der Hotkey gedrückt ist</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>Aktion</h3>
+          <div class="seg seg-2" id="action-seg">
+            <button type="button" data-val="click" id="act-click">Klicken</button>
+            <button type="button" data-val="hold" id="act-hold">Dauerdrücken</button>
+          </div>
+          <p class="note" id="action-note">Dauerdrücken hält die Taste fest – ideal für AFK-Angeln oder Cobblestone abbauen.</p>
+        </div>
+
+        <div class="group" id="speed-group">
+          <div class="group-head">
+            <h3>Geschwindigkeit</h3>
+            <label class="switch-line small" for="vary">
+              <span>Variation</span>
+              <input type="checkbox" id="vary" class="switch">
+            </label>
+          </div>
+          <div class="range2" id="range2">
+            <div class="range2-track"><div class="range2-fill" id="range2-fill"></div></div>
+            <input type="range" id="r-min" min="1" max="30" step="0.5" aria-label="Minimum CPS">
+            <input type="range" id="r-max" min="1" max="30" step="0.5" aria-label="Maximum CPS">
+            <div class="range2-scale"><span style="left:0%">1</span><span style="left:31.03%">10</span><span style="left:65.52%">20</span><span style="left:100%">30+</span></div>
+          </div>
+          <div class="speed-fields">
+            <label class="field" id="f-min-wrap"><span id="f-min-label">CPS</span><input type="number" id="f-min" min="0.1" max="1000" step="0.1" inputmode="decimal"></label>
+            <label class="field" id="f-max-wrap"><span>Max CPS</span><input type="number" id="f-max" min="0.1" max="1000" step="0.1" inputmode="decimal"></label>
+            <label class="field" id="f-ms-wrap"><span>Intervall ms</span><input type="number" id="f-ms" min="1" max="10000" step="1" inputmode="decimal"></label>
+          </div>
+          <p class="note mono" id="speed-note">= 100 ms pro Klick</p>
+          <div class="chips" id="presets">
+            <button type="button" data-cps="1.6" title="Schwert-Cooldown ab 1.9 (625 ms)" class="sword"><svg viewBox="0 0 9 9" aria-hidden="true"><path fill="currentColor" d="M7 0h2v2H8v1H7v1H6v1H5v1H4V5H3V4h1V3h1V2h1V1h1zM1 5h1v1h1v1h1v1H3v1H1V8H0V7h1z"/></svg>1,6</button>
+            <button type="button" data-cps="5">5</button>
+            <button type="button" data-cps="10">10</button>
+            <button type="button" data-cps="12">12</button>
+            <button type="button" data-cps="16">16</button>
+            <button type="button" data-cps="20">20</button>
+            <button type="button" data-cps="50">50</button>
+            <button type="button" data-cps="100">100</button>
+            <button type="button" data-cps="1000">1000</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>Auto-Stopp &amp; Start</h3>
+          <div class="fields-3">
+            <label class="field"><span>Stopp nach s</span><input type="number" id="f-limit-s" min="0" step="1" inputmode="numeric"></label>
+            <label class="field"><span>Stopp nach Klicks</span><input type="number" id="f-limit-c" min="0" step="1" inputmode="numeric"></label>
+            <label class="field"><span>Countdown s</span><input type="number" id="f-delay" min="0" max="60" step="0.5" inputmode="decimal"></label>
+          </div>
+          <p class="note">0 = aus. Start per Button oder Handy wartet immer mindestens 3 s.</p>
+        </div>
+
+        <div class="group">
+          <h3>Profil</h3>
+          <div class="profile-tools">
+            <label class="field grow"><span>Name</span><input type="text" id="f-pname" maxlength="24" autocomplete="off"></label>
+            <button type="button" class="btn" id="p-dup">Duplizieren</button>
+            <button type="button" class="btn" id="p-new">Neu</button>
+            <button type="button" class="btn danger" id="p-del">Löschen</button>
+          </div>
+          <p class="note" id="p-del-confirm" hidden>Nochmal auf „Löschen“ tippen, um das Profil zu entfernen.</p>
+        </div>
+
+        <details class="group adv">
+          <summary>Erweitert</summary>
+          <label class="field"><span>Klick-Dauer ms (Zeit zwischen Drücken und Loslassen)</span><input type="number" id="f-hold" min="0" max="500" step="1" inputmode="numeric"></label>
+        </details>
+      </div>
+
+      <!-- Hotkeys -->
+      <div class="tab-body" data-body="keys" hidden>
+        <div class="hk-list">
+          <div class="hk slot">
+            <div class="hk-text"><b>Start / Stopp</b><span id="hk-toggle-desc">Schaltet den Klicker an und aus</span></div>
+            <kbd class="keycap" id="hk-toggle">F6</kbd>
+            <button type="button" class="btn" data-rec="toggle">Ändern</button>
+          </div>
+          <div class="hk slot">
+            <div class="hk-text"><b>Nur Stopp</b><span>Not-Aus, stoppt immer</span></div>
+            <kbd class="keycap" id="hk-stop">—</kbd>
+            <button type="button" class="btn" data-rec="stop">Ändern</button>
+            <button type="button" class="btn icon" data-clear="stop" aria-label="Entfernen">×</button>
+          </div>
+          <div class="hk slot">
+            <div class="hk-text"><b>Nächstes Profil</b><span>z. B. von PvP auf Bridging wechseln</span></div>
+            <kbd class="keycap" id="hk-next_profile">—</kbd>
+            <button type="button" class="btn" data-rec="next_profile">Ändern</button>
+            <button type="button" class="btn icon" data-clear="next_profile" aria-label="Entfernen">×</button>
+          </div>
+        </div>
+        <ul class="tips">
+          <li>Hotkeys funktionieren global – auch wenn Minecraft im Vordergrund ist.</li>
+          <li>Maus-Seitentasten (Maus 4/5) und die mittlere Maustaste gehen auch.</li>
+          <li>Kombinationen wie <kbd>Strg</kbd>+<kbd>R</kbd> sind möglich. Ein einzelner Hotkey löst auch beim Sprinten (Strg) aus.</li>
+        </ul>
+        <p class="warn-box" id="hooks-warn" hidden>Globale Hotkeys sind gerade nicht aktiv. Starte den AutoClicker neu. Läuft Minecraft als Administrator, starte den AutoClicker ebenfalls als Administrator.</p>
+      </div>
+
+      <!-- Smart -->
+      <div class="tab-body" data-body="smart" hidden>
+        <div class="opt slot">
+          <div class="opt-text"><b>Nur in Minecraft klicken</b><span>Pausiert automatisch, sobald ein anderes Fenster vorne ist.</span></div>
+          <input type="checkbox" class="switch" id="o-lock" aria-label="Nur in Minecraft klicken">
+        </div>
+        <label class="field" id="o-match-wrap"><span>Fenstername enthält (Komma getrennt)</span><input type="text" id="o-match" autocomplete="off" spellcheck="false"></label>
+
+        <div class="opt slot">
+          <div class="opt-text"><b>Pause in Inventar &amp; Chat <em class="badge">Beta</em></b><span>Klickt nur, wenn die Maus im Spiel gefangen ist – kein Item-Chaos im Inventar.</span></div>
+          <input type="checkbox" class="switch" id="o-menus" aria-label="Pause in Inventar und Chat">
+        </div>
+
+        <div class="opt slot">
+          <div class="opt-text"><b>Sounds</b><span>Piepton bei Start, Stopp und Countdown – praktisch im Vollbild.</span></div>
+          <input type="checkbox" class="switch" id="o-sound" aria-label="Sounds">
+        </div>
+
+        <div class="opt slot pc-only">
+          <div class="opt-text"><b>Immer im Vordergrund</b><span>Das Fenster bleibt über Minecraft sichtbar.</span></div>
+          <input type="checkbox" class="switch" id="o-top" aria-label="Immer im Vordergrund">
+        </div>
+
+        <div class="group">
+          <h3>Farbe</h3>
+          <div class="materials" id="materials">
+            <button type="button" data-mat="grass" id="mat-grass"><i></i>Gras</button>
+            <button type="button" data-mat="diamond" id="mat-diamond"><i></i>Diamant</button>
+            <button type="button" data-mat="redstone" id="mat-redstone"><i></i>Redstone</button>
+            <button type="button" data-mat="amethyst" id="mat-amethyst"><i></i>Amethyst</button>
+            <button type="button" data-mat="gold" id="mat-gold"><i></i>Gold</button>
+          </div>
+        </div>
+        <p class="fine">Viele Server verbieten Autoclicker. Nutze ihn dort, wo es erlaubt ist – Singleplayer, eigene Server, AFK-Farmen.</p>
+      </div>
+
+      <!-- Handy -->
+      <div class="tab-body" data-body="phone" hidden>
+        <div class="pc-only">
+          <div class="opt slot">
+            <div class="opt-text"><b>Handy-Fernbedienung</b><span>Steuere den Klicker vom Handy – Start, Stopp, Profile, Live-CPS.</span></div>
+            <input type="checkbox" class="switch" id="o-remote" aria-label="Handy-Fernbedienung">
+          </div>
+          <div class="remote" id="remote-box" hidden>
+            <div class="qr slot"><img id="qr" alt="QR-Code zur Fernbedienung" width="168" height="168"></div>
+            <ol class="steps">
+              <li>Handy ins <b>gleiche WLAN</b> wie den PC.</li>
+              <li>QR-Code mit der Kamera scannen.</li>
+              <li>Im Browser „Zum Startbildschirm“ wählen – dann wirkt es wie eine App.</li>
+            </ol>
+            <div class="url-row">
+              <code id="remote-url">—</code>
+              <button type="button" class="btn" id="copy-url">Kopieren</button>
+            </div>
+            <p class="note">Fragt Windows nach der Firewall: „Zugriff zulassen“ (privates Netzwerk). Der Code in der Adresse schützt vor fremden Geräten.</p>
+            <button type="button" class="btn" id="new-token">Neuen Code erzeugen</button>
+          </div>
+          <p class="warn-box" id="remote-err" hidden></p>
+        </div>
+        <div class="phone-only">
+          <div class="phone-hello slot">
+            <b>Du steuerst gerade deinen PC.</b>
+            <span>Start per Handy wartet 3 Sekunden – genug Zeit, um zurück ins Spiel zu wechseln.</span>
+          </div>
+          <label class="switch-line" for="o-vibrate"><span>Vibrieren bei Start/Stopp</span><input type="checkbox" id="o-vibrate" class="switch"></label>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Hotkey-Aufnahme -->
+<div class="modal" id="rec-modal" hidden>
+  <div class="modal-card raised" role="dialog" aria-modal="true" aria-labelledby="rec-title">
+    <div class="rec-key"><kbd class="keycap big">?</kbd></div>
+    <h2 id="rec-title">Drück jetzt die neue Taste</h2>
+    <p>Taste, Kombination oder Maus 4/5. <kbd>Esc</kbd> bricht ab.</p>
+    <div class="rec-timer"><div id="rec-timer-fill"></div></div>
+    <button type="button" class="btn" id="rec-cancel">Abbrechen</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="offline" id="offline" hidden>
+  <div class="offline-card raised">
+    <b>Keine Verbindung zum AutoClicker</b>
+    <span id="offline-text">Läuft das Programm auf dem PC noch? Neuer Versuch läuft …</span>
+  </div>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="mouse-l" shape-rendering="crispEdges">
+      <path fill="currentColor" opacity=".35" d="M2 1h8v1h1v12h-1v1H2v-1H1V2h1z"/>
+      <path fill="currentColor" d="M2 1h4v6H1V2h1z"/>
+    </g>
+    <g id="mouse-r" shape-rendering="crispEdges">
+      <path fill="currentColor" opacity=".35" d="M2 1h8v1h1v12h-1v1H2v-1H1V2h1z"/>
+      <path fill="currentColor" d="M6 1h4v1h1v5H6z"/>
+    </g>
+    <g id="mouse-m" shape-rendering="crispEdges">
+      <path fill="currentColor" opacity=".35" d="M2 1h8v1h1v12h-1v1H2v-1H1V2h1z"/>
+      <path fill="currentColor" d="M5 2h2v4H5z"/>
+    </g>
+  </defs>
+</svg>
+<!--/APP-->
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "AutoClicker v6",
+  "short_name": "AutoClicker",
+  "description": "Fernbedienung für den AutoClicker auf deinem PC",
+  "display": "standalone",
+  "background_color": "#14161b",
+  "theme_color": "#14161b",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
