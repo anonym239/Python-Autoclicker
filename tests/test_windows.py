@@ -7,7 +7,6 @@ Achtung: sendet echte Maus- und Tastatureingaben (F24 + Klicks).
 import ctypes
 import os
 import sys
-import threading
 import time
 import unittest
 
@@ -79,7 +78,7 @@ class WindowsBackendTests(unittest.TestCase):
     def test_own_clicks_are_ignored_foreign_clicks_seen(self):
         self.assertEqual(self.be._both["left"]._length_, 2)
         self.be.click("left")
-        self.be.click("left", 0.01)
+        self.be.click("right")
         time.sleep(0.3)
         self.assertEqual(self.mouse, [], "eigene Klicks duerfen nicht als 'gehalten' zaehlen")
         self.send_foreign_click()
@@ -102,7 +101,6 @@ class WindowsBackendTests(unittest.TestCase):
 
     def test_window_helpers(self):
         self.assertIsInstance(self.be.foreground_title(), str)
-        self.assertIn(self.be.mouse_captured(), (True, False, None))
         self.be.set_timer_resolution(True)
         self.be.set_timer_resolution(False)
         self.assertFalse(self.be.set_topmost("gibt-es-sicher-nicht-123", True))
@@ -112,22 +110,20 @@ class WindowsBackendTests(unittest.TestCase):
         counted = []
         orig = self.be.click
 
-        def counting(button, hold_s=0.0):
+        def counting(button):
             counted.append(time.perf_counter())
-            orig(button, hold_s)
+            orig(button)
 
         self.be.click = counting
         e = ClickEngine(self.be)
-        e.configure(ClickSettings(cps_min=100, cps_max=100, limit_clicks=100), SmartSettings())
+        e.configure(ClickSettings(cps_min=100, cps_max=100, limit_seconds=1.0), SmartSettings())
         e.start_threads()
         try:
-            e.start("hotkey")
+            e.start()
             self.assertTrue(wait_for(lambda: not e.armed, 4))
         finally:
             e.shutdown()
-        self.assertEqual(len(counted), 100)
-        span = counted[-1] - counted[0]
-        self.assertTrue(0.9 <= span <= 1.15, span)
+        self.assertTrue(95 <= len(counted) <= 102, len(counted))
         self.assertEqual(self.mouse, [])
 
 

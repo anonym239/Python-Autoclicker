@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import socket
 import sys
 import threading
 import time
@@ -15,43 +14,12 @@ from . import APP_NAME, VERSION, WINDOW_TITLE
 from .backend import create_backend
 from .config import PRESET_ORDER, PRESETS, Config, user_data_dir
 from .engine import ClickEngine
-from .keys import HotkeyMatcher, normalize_hotkey
-from .qrcodegen import QrCode
+from .keys import HotkeyMatcher
 from .server import WebServer
 from .window import open_app_window
 
 RECORD_TIMEOUT = 15.0
-
-
-def lan_ip() -> str | None:
-    """IP-Adresse dieses PCs im WLAN/LAN (es wird nichts gesendet)."""
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.connect(("10.255.255.255", 1))
-            ip = s.getsockname()[0]
-            if not ip.startswith("127."):
-                return ip
-    except OSError:
-        pass
-    try:
-        ip = socket.gethostbyname(socket.gethostname())
-        return None if ip.startswith("127.") else ip
-    except OSError:
-        return None
-
-
-def qr_svg(text: str) -> str:
-    qr = QrCode.encode_text(text, QrCode.Ecc.MEDIUM)
-    n, border = qr.get_size(), 2
-    parts = []
-    for y in range(n):
-        for x in range(n):
-            if qr.get_module(x, y):
-                parts.append(f"M{x + border},{y + border}h1v1h-1z")
-    size = n + border * 2
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}" '
-            f'shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/>'
-            f'<path d="{"".join(parts)}" fill="#111"/></svg>')
+NEW = "new"  # Aufnahme-Ziel fuer einen neuen Hotkey
 
 
 class App:
@@ -68,11 +36,10 @@ class App:
         self.server = WebServer(self, web_dir, snap["general"]["port"])
         self.keep_alive = keep_alive          # Fenster schliessen beendet NICHT (Tests/--no-window)
         self.rev = 1                          # Konfig-Revision fuer die Oberflaeche
-        self.recording = False
+        self.recording = None                 # None | NEW | Index des Hotkeys
         self._record_deadline = 0.0
         self.notice = None
         self._notice_id = 0
-        self.remote_error: str | None = None
         self._last_desktop_poll = 0.0
         self._bye_at = 0.0
         self._save_timer: threading.Timer | None = None
@@ -93,21 +60,13 @@ class App:
     def local_url(self) -> str:
         return f"http://127.0.0.1:{self.server.port}/?t={self.token}"
 
-    def remote_url(self) -> str | None:
-        ip = lan_ip()
-        return f"http://{ip}:{self.server.port}/?t={self.token}" if ip else None
-
-    def remote_qr_svg(self) -> str:
-        return qr_svg(self.remote_url() or self.local_url())
-
     # ─── Start / Ende ───────────────────────────────────
     def start(self) -> None:
-        self.config.save()  # Handy-Code bleibt so ueber Neustarts gleich
+        self.config.save()
         self._apply(initial=True)
         self.engine.start_threads()
         self.backend.start_input(self.matcher)
-        host = "0.0.0.0" if self.config.data["general"]["remote"] else "127.0.0.1"
-        self.server.start(host)
+        self.server.start()
         threading.Thread(target=self._housekeeping, name="housekeeping", daemon=True).start()
 
     def shutdown(self) -> None:
@@ -126,9 +85,9 @@ class App:
         saved_clicks = self.engine.lifetime_clicks()
         while not self.quit_event.wait(0.5):
             now = time.monotonic()
-            if self.recording and now > self._record_deadline:
+            if self.recording is not None and now > self._record_deadline:
                 self.matcher.cancel_recording()
-                self.recording = False
+                self.recording = None
             if self._bye_at and now - self._bye_at > 3.0:
                 self._bye_at = 0.0
                 if self._last_desktop_poll < now - 3.0 and not self.keep_alive:
@@ -157,7 +116,7 @@ class App:
     def _apply(self, initial: bool = False) -> None:
         cfg = self.config
         self.engine.configure(cfg.click_settings(), cfg.smart_settings())
-        self.matcher.set_bindings({"toggle": cfg.data["hotkey"]})
+        self.matcher.set_bindings({str(i): h["key"] for i, h in enumerate(cfg.hotkeys())})
         need_mouse = cfg.mode() in ("hold_mouse", "boost") or self.matcher.wants_mouse_buttons()
         self.backend.set_mouse_hook(need_mouse)
         self.rev += 1
@@ -177,23 +136,34 @@ class App:
 
     # ─── Ereignisse ─────────────────────────────────────
     def _on_hotkey(self, slot: str, down: bool) -> None:
-        if slot != "toggle":
+        if not down:
             return
-        if self.config.mode() == "hold_key":
-            self.engine.set_key_held(down)
-        elif down:
-            self.engine.toggle("hotkey")
+        hks = self.config.hotkeys()
+        try:
+            action = hks[int(slot)]["action"]
+        except (ValueError, IndexError):
+            return
+        if action == "on":
+            self.engine.start()
+        elif action == "off":
+            self.engine.stop("manual")
+        else:
+            self.engine.toggle()
 
     def _on_mouse(self, button: str, down: bool) -> None:
         self.engine.set_mouse_held(button, down)
 
     def _on_record(self, slot: str, text: str | None) -> None:
         with self._lock:
-            self.recording = False
+            target = self.recording
+            self.recording = None
             if text:
-                self.config.set_hotkey(text)
-                self._notify(f"Hotkey gespeichert: {normalize_hotkey(text).upper()}")
-                self._save_soon()
+                err = self.config.set_hotkey(None if target == NEW else target, text)
+                if err:
+                    self._notify(err)
+                else:
+                    self._notify("Hotkey gespeichert")
+                    self._save_soon()
             self._apply()
 
     def _on_engine_event(self, event: str) -> None:
@@ -206,8 +176,8 @@ class App:
             self._save_soon()
 
     # ─── API ────────────────────────────────────────────
-    def state(self, remote: bool, since: str = "-1", client: str = "") -> dict:
-        if not remote and client == "desktop":
+    def state(self, since: str = "-1", client: str = "") -> dict:
+        if client == "desktop":
             self._last_desktop_poll = time.monotonic()
         out = {
             "rev": self.rev,
@@ -224,100 +194,84 @@ class App:
                             for pid in PRESET_ORDER],
                 "mode": self.config.mode(),
                 "current": self.config.current(),
-                "hotkey": snap["hotkey"],
+                "hotkeys": snap["hotkeys"],
                 "general": general,
-                "best_cps_ever": max(snap["stats"]["best_cps"], round(self.engine.best_cps, 1)),
             }
             out["info"] = {
                 "name": APP_NAME,
                 "version": VERSION,
                 "backend": self.backend.name,
                 "hooks_ok": getattr(self.backend, "hooks_ok", self.backend.has_global_input),
-                "remote_client": remote,
-                "remote_url": self.remote_url() if snap["general"]["remote"] else None,
-                "remote_error": self.remote_error,
             }
         return out
 
-    def handle(self, name: str, body: dict, remote: bool = False, client: str = ""):
+    def handle(self, name: str, body: dict, client: str = ""):
         if name == "action":
-            return self.action(body.get("do"), "remote" if remote else "ui")
+            return self.action(body.get("do"))
         if name == "settings":
             general = body.get("general") or {}
-            if remote:  # Fenster-Optionen nur am PC
-                general.pop("always_on_top", None)
             changed = self.config.update(body)
             if "general" in changed and "always_on_top" in general:
                 self.backend.set_topmost(WINDOW_TITLE, self.config.data["general"]["always_on_top"])
             self._apply()
             self._save_soon()
-            return self.state(remote)
+            return self.state()
         if name == "preset":
             if not self.config.select(str(body.get("id", ""))):
                 return {"error": "Unbekannter Modus"}
             self._apply()
             self._save_soon()
-            return self.state(remote)
-        if name == "record":
-            return self.record(body, remote)
-        if name == "remote":
-            if remote:
-                return {"error": "Nur am PC änderbar"}
-            return self.set_remote(body)
+            return self.state()
+        if name == "hotkeys":
+            return self.hotkeys(body)
         if name == "bye":
-            if not remote and client == "desktop":
+            if client == "desktop":
                 self._bye_at = time.monotonic()
             return {"ok": True}
         return None
 
-    def action(self, do, source: str):
+    def action(self, do):
         if do == "toggle":
-            self.engine.toggle(source)
+            self.engine.toggle()
         elif do == "stop":
             self.engine.stop("manual")
         elif do == "reset_stats":
             self.engine.reset_stats()
         else:
             return {"error": "Unbekannte Aktion"}
-        return self.state(source == "remote")
+        return self.state()
 
-    def record(self, body: dict, remote: bool = False):
-        if body.get("cancel"):
-            self.matcher.cancel_recording()
-            self.recording = False
-            self._apply()
-            return self.state(remote)
-        key = body.get("key")
-        if key is not None:
-            # Taste kommt aus dem Browser – nur ohne globale Hooks (Demo-Modus)
-            if self.backend.has_global_input:
-                return self.state(remote)
-            text = normalize_hotkey(str(key))
-            if not text:
-                return {"error": "Diese Taste geht leider nicht"}
+    def hotkeys(self, body: dict):
+        op = body.get("op")
+        index = body.get("index")
+        if index is not None and not isinstance(index, int):
+            return {"error": "Ungültiger Hotkey"}
+        if op == "record":  # naechste Taste aufnehmen (index None = neuer Hotkey)
+            self.recording = NEW if index is None else index
+            self._record_deadline = time.monotonic() + RECORD_TIMEOUT
+            self.matcher.start_recording("record")
+        elif op == "cancel":
             self.matcher.stop_recording()
-            self._on_record("toggle", text)
-            return self.state(remote)
-        self.recording = True
-        self._record_deadline = time.monotonic() + RECORD_TIMEOUT
-        self.matcher.start_recording("toggle")
+            self.recording = None
+        elif op == "key":
+            # Taste kommt aus dem Browser – nur ohne globale Hooks (Demo-Modus)
+            if self.backend.has_global_input or self.recording is None:
+                return self.state()
+            self.matcher.stop_recording()
+            self._on_record("record", str(body.get("key", "")) or None)
+            return self.state()
+        elif op == "action":
+            if not self.config.set_hotkey_action(index if index is not None else -1, str(body.get("action"))):
+                return {"error": "Ungültige Aktion"}
+            self._save_soon()
+        elif op == "delete":
+            if not self.config.delete_hotkey(index if index is not None else -1):
+                return {"error": "Hotkey nicht gefunden"}
+            self._save_soon()
+        else:
+            return {"error": "Unbekannte Aktion"}
         self._apply()
-        return self.state(remote)
-
-    def set_remote(self, body: dict):
-        if body.get("new_token"):
-            self.config.new_token()
-            self._notify("Neuer Code – das Handy muss den QR-Code neu scannen")
-        if "enabled" in body:
-            on = bool(body["enabled"])
-            self.config.data["general"]["remote"] = on
-            err = self.server.rebind("0.0.0.0" if on else "127.0.0.1")
-            self.remote_error = err
-            if err:
-                self.config.data["general"]["remote"] = False
-        self.rev += 1
-        self._save_soon()
-        return self.state(False)
+        return self.state()
 
 
 # ─── Programmstart ──────────────────────────────────────
@@ -344,7 +298,7 @@ def main(argv=None) -> int:
     parser.add_argument("--demo", action="store_true", help="Demo-Modus: simuliert Klicks (zum Ausprobieren)")
     parser.add_argument("--no-window", action="store_true", help="kein Fenster öffnen (nur Server)")
     parser.add_argument("--browser", action="store_true", help="im Standardbrowser statt als App-Fenster öffnen")
-    parser.add_argument("--port", type=int, help="Port für Oberfläche/Handy (Standard 8765)")
+    parser.add_argument("--port", type=int, help="Port für die Oberfläche (Standard 8765)")
     args = parser.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):  # Umlaute dürfen den Start nie abbrechen
         if stream is not None and hasattr(stream, "reconfigure"):

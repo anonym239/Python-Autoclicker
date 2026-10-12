@@ -1,4 +1,4 @@
-"""Einstellungen: 4 feste Modi links, ein Hotkey, ein paar Optionen."""
+"""Einstellungen: 4 feste Modi links, eigene Hotkeys, ein paar Optionen."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ from .keys import normalize_hotkey
 CONFIG_NAME = "clicker_settings.json"
 OLD_CONFIG_NAMES = ("ac_settings.json", "autoclicker_settings.json")  # v5
 THEMES = ("system", "light", "dark")
+HOTKEY_ACTIONS = ("toggle", "on", "off")  # An/Aus, nur an, nur aus
+MAX_HOTKEYS = 8
 MAX_CPS = 1000.0
 DEFAULT_PORT = 8765
 VARIATION = 0.12  # +-12 % bei "zufaellige Abweichung"
@@ -32,17 +34,15 @@ DEFAULTS = {
     "version": 6,
     "preset": "standard",
     "presets": {},
-    "hotkey": "f6",
+    "hotkeys": [{"key": "f6", "action": "toggle"}],
     "general": {
         "vary": False,
         "auto_stop": 0.0,
-        "start_delay": 0.0,
         "window_lock": False,
         "window_match": "Minecraft, Lunar Client, Badlion, Feather, LabyMod",
         "sound": True,
         "always_on_top": False,
         "theme": "system",
-        "remote": False,
         "token": "",
         "port": DEFAULT_PORT,
         "tutorial_done": False,
@@ -103,6 +103,19 @@ def _migrate_hotkey(text) -> str:
     return normalize_hotkey(KEY_ALIASES.get(t, t))
 
 
+def sanitize_hotkeys(raw) -> list:
+    out, seen = [], set()
+    for item in raw if isinstance(raw, list) else []:
+        if not isinstance(item, dict):
+            continue
+        key = normalize_hotkey(item.get("key", ""))
+        action = item.get("action") if item.get("action") in HOTKEY_ACTIONS else "toggle"
+        if key and key not in seen and len(out) < MAX_HOTKEYS:
+            seen.add(key)
+            out.append({"key": key, "action": action})
+    return out
+
+
 def user_data_dir(fallback: str) -> str:
     """Ordner fuer die Einstellungen der installierten .exe (immer beschreibbar)."""
     base = os.environ.get("APPDATA")
@@ -158,10 +171,14 @@ class Config:
     def _migrate_v5(self, old: dict) -> None:
         ms = _num(old.get("interval_ms"), 0.001, 600000, 100.0)
         self.data["presets"]["standard"]["cps"] = round(min(MAX_CPS, 1000.0 / ms), 3)
-        self.data["hotkey"] = _migrate_hotkey(old.get("hotkey_start")) or "f6"
+        start = _migrate_hotkey(old.get("hotkey_start")) or "f6"
+        stop = _migrate_hotkey(old.get("hotkey_stop"))
+        if stop and stop != start:  # v5 hatte getrennte Start- und Stopp-Tasten
+            self.data["hotkeys"] = [{"key": start, "action": "on"}, {"key": stop, "action": "off"}]
+        else:
+            self.data["hotkeys"] = [{"key": start, "action": "toggle"}]
         g = self.data["general"]
         g["auto_stop"] = _num(old.get("auto_stop_sec", 0), 0, 86400, 0.0)
-        g["start_delay"] = _num(old.get("delay_sec", 0), 0, 60, 0.0)
         g["always_on_top"] = _bool(old.get("always_on_top"))
 
     def save(self) -> bool:
@@ -184,8 +201,11 @@ class Config:
                 d["presets"][pid] = sanitize_preset(presets[pid], d["presets"][pid])
         if raw.get("preset") in PRESETS:
             d["preset"] = raw["preset"]
-        if "hotkey" in raw:
-            d["hotkey"] = normalize_hotkey(raw["hotkey"])
+        if isinstance(raw.get("hotkeys"), list):
+            d["hotkeys"] = sanitize_hotkeys(raw["hotkeys"])
+        elif "hotkey" in raw:  # Version 6.0.0 hatte nur einen Hotkey
+            key = normalize_hotkey(raw["hotkey"])
+            d["hotkeys"] = [{"key": key, "action": "toggle"}] if key else []
         self._apply_general(d, raw.get("general") or {}, allow_private=True)
         st = raw.get("stats") or {}
         d["stats"]["lifetime_clicks"] = _num(st.get("lifetime_clicks", 0), 0, 10**15, 0, True)
@@ -195,13 +215,11 @@ class Config:
     @staticmethod
     def _apply_general(d: dict, g: dict, allow_private: bool = False) -> None:
         out = d["general"]
-        for key in ("vary", "window_lock", "sound", "always_on_top", "remote", "tutorial_done"):
+        for key in ("vary", "window_lock", "sound", "always_on_top", "tutorial_done"):
             if key in g:
                 out[key] = _bool(g[key])
         if "auto_stop" in g:
             out["auto_stop"] = _num(g["auto_stop"], 0, 86400, out["auto_stop"])
-        if "start_delay" in g:
-            out["start_delay"] = _num(g["start_delay"], 0, 60, out["start_delay"])
         if "window_match" in g:
             text = ", ".join(x.strip() for x in str(g["window_match"]).split(",") if x.strip())
             out["window_match"] = text[:200] or DEFAULTS["general"]["window_match"]
@@ -238,8 +256,7 @@ class Config:
             lo = max(0.1, round(cps * (1 - VARIATION), 2)) if g["vary"] else cps
             hi = min(MAX_CPS, round(cps * (1 + VARIATION), 2)) if g["vary"] else cps
             return ClickSettings(button=p["button"], mode=self.mode(), cps_min=lo, cps_max=hi,
-                                 boost=p["boost"], limit_seconds=g["auto_stop"],
-                                 start_delay=g["start_delay"])
+                                 boost=p["boost"], limit_seconds=g["auto_stop"])
 
     def smart_settings(self) -> SmartSettings:
         with self._lock:
@@ -268,9 +285,46 @@ class Config:
             self.data["preset"] = pid
         return True
 
-    def set_hotkey(self, text: str) -> None:
+    # ─── Hotkeys ─────────────────────────────────────────
+    def hotkeys(self) -> list:
         with self._lock:
-            self.data["hotkey"] = normalize_hotkey(text)
+            return [dict(h) for h in self.data["hotkeys"]]
+
+    def set_hotkey(self, index, key: str) -> str | None:
+        """index None = neuen Hotkey anlegen. -> Fehlertext oder None."""
+        key = normalize_hotkey(key)
+        if not key:
+            return "Diese Taste geht leider nicht"
+        with self._lock:
+            hks = self.data["hotkeys"]
+            for i, h in enumerate(hks):
+                if h["key"] == key and i != index:
+                    return "Diese Taste ist schon belegt"
+            if index is None:
+                if len(hks) >= MAX_HOTKEYS:
+                    return f"Maximal {MAX_HOTKEYS} Hotkeys"
+                hks.append({"key": key, "action": "toggle"})
+            elif 0 <= index < len(hks):
+                hks[index]["key"] = key
+            else:
+                return "Hotkey nicht gefunden"
+        return None
+
+    def set_hotkey_action(self, index: int, action: str) -> bool:
+        with self._lock:
+            hks = self.data["hotkeys"]
+            if action in HOTKEY_ACTIONS and 0 <= index < len(hks):
+                hks[index]["action"] = action
+                return True
+        return False
+
+    def delete_hotkey(self, index: int) -> bool:
+        with self._lock:
+            hks = self.data["hotkeys"]
+            if 0 <= index < len(hks):
+                hks.pop(index)
+                return True
+        return False
 
     def new_token(self) -> str:
         with self._lock:

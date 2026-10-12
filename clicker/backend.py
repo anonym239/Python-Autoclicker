@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sys
 import threading
-import time
 
 
 class DemoBackend:
@@ -16,30 +15,17 @@ class DemoBackend:
 
     def __init__(self):
         self.clicks = 0
-        self.down: set[str] = set()
         self.foreground = "Minecraft 1.21.4 (Demo)"
-        self.captured = True
         self.beeps: list[str] = []
         self.timer_high = False
         self._lock = threading.Lock()
 
-    def click(self, button: str, hold_s: float = 0.0) -> None:
-        if hold_s > 0:
-            time.sleep(hold_s)
+    def click(self, button: str) -> None:
         with self._lock:
             self.clicks += 1
 
-    def press(self, button: str) -> None:
-        self.down.add(button)
-
-    def release(self, button: str) -> None:
-        self.down.discard(button)
-
     def foreground_title(self) -> str:
         return self.foreground
-
-    def mouse_captured(self) -> bool | None:
-        return self.captured
 
     def set_timer_resolution(self, high: bool) -> None:
         self.timer_high = high

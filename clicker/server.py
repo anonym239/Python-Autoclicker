@@ -1,16 +1,15 @@
-"""Kleiner HTTP-Server (nur Standardbibliothek) fuer Oberflaeche + Handy.
+"""Kleiner HTTP-Server (nur Standardbibliothek) fuer die Oberflaeche.
 
-- Liefert die Web-Oberflaeche aus dem Ordner web/.
+- Lauscht nur auf 127.0.0.1 – erreichbar ausschliesslich von diesem PC.
+- Liefert die Oberflaeche aus dem Ordner web/.
 - JSON-API unter /api/... – jede Anfrage braucht den geheimen Code (Token),
-  damit niemand anderes im WLAN deine Maus steuern kann.
-- Standard: nur 127.0.0.1. Mit Handy-Fernbedienung: 0.0.0.0 (ganzes WLAN).
+  damit keine Webseite im Browser den Klicker fernsteuern kann.
 """
 
 from __future__ import annotations
 
 import ipaddress
 import json
-import mimetypes
 import os
 import secrets
 import threading
@@ -23,11 +22,6 @@ STATIC_TYPES = {
     ".css": "text/css; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
     ".svg": "image/svg+xml",
-    ".png": "image/png",
-    ".woff2": "font/woff2",
-    ".webmanifest": "application/manifest+json",
-    ".json": "application/json",
-    ".txt": "text/plain; charset=utf-8",
 }
 
 
@@ -55,45 +49,23 @@ class WebServer:
         self.host = "127.0.0.1"
         self._httpd: _HTTPServer | None = None
         self._thread: threading.Thread | None = None
-        self._lock = threading.Lock()
 
     # ─── Start / Stopp ───────────────────────────────────
-    def start(self, host: str = "127.0.0.1", try_ports: int = 10) -> None:
+    def start(self, try_ports: int = 10) -> None:
         last_err = None
-        candidates = [self.port + i for i in range(try_ports)] + [0]
-        for port in candidates:
+        for port in [self.port + i for i in range(try_ports)] + [0]:
             try:
-                self._bind(host, port)
-                return
+                httpd = _HTTPServer((self.host, port), self._handler_class())
             except OSError as e:
                 last_err = e
+                continue
+            self._httpd = httpd
+            self.port = httpd.server_address[1]
+            self._thread = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.25},
+                                            name="http", daemon=True)
+            self._thread.start()
+            return
         raise OSError(f"Kein freier Port gefunden: {last_err}")
-
-    def _bind(self, host: str, port: int) -> None:
-        httpd = _HTTPServer((host, port), self._handler_class())
-        self._httpd = httpd
-        self.host = host
-        self.port = httpd.server_address[1]
-        self._thread = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.25},
-                                        name="http", daemon=True)
-        self._thread.start()
-
-    def rebind(self, host: str) -> str | None:
-        """Wechselt zwischen nur-lokal und WLAN – gleicher Port. -> Fehlertext oder None."""
-        with self._lock:
-            if host == self.host:
-                return None
-            old_host, port = self.host, self.port
-            self.stop()
-            try:
-                self._bind(host, port)
-                return None
-            except OSError as e:
-                try:
-                    self._bind(old_host, port)
-                except OSError:
-                    self.start(old_host)
-                return str(e)
 
     def stop(self) -> None:
         if self._httpd:
@@ -132,14 +104,12 @@ class WebServer:
                 expected = server.app.token
                 return bool(token) and secrets.compare_digest(token.encode(), expected.encode())
 
-            @property
-            def is_remote(self) -> bool:
-                return not _is_loopback(self.client_address[0])
-
             # GET
             def do_GET(self):
                 url = urlparse(self.path)
                 query = parse_qs(url.query)
+                if not _is_loopback(self.client_address[0]):
+                    return self._send(403, b"Nur auf diesem PC", "text/plain; charset=utf-8")
                 if url.path.startswith("/api/"):
                     if url.path == "/api/ping":
                         return self._json(server.app.ping())
@@ -148,10 +118,7 @@ class WebServer:
                     if url.path == "/api/state":
                         since = (query.get("since") or ["-1"])[0]
                         client = (query.get("client") or [""])[0]
-                        return self._json(server.app.state(self.is_remote, since, client))
-                    if url.path == "/api/qr.svg":
-                        svg = server.app.remote_qr_svg()
-                        return self._send(200, svg.encode("utf-8"), "image/svg+xml")
+                        return self._json(server.app.state(since, client))
                     return self._json({"error": "Unbekannt"}, 404)
                 return self._static(url.path)
 
@@ -161,6 +128,9 @@ class WebServer:
             def do_POST(self):
                 url = urlparse(self.path)
                 query = parse_qs(url.query)
+                if not _is_loopback(self.client_address[0]):
+                    self.close_connection = True
+                    return self._json({"error": "Nur auf diesem PC"}, 403)
                 length = int(self.headers.get("Content-Length") or 0)
                 if length > MAX_BODY:
                     self.close_connection = True
@@ -178,8 +148,7 @@ class WebServer:
                     return self._json({"error": "Ungültige Daten"}, 400)
                 name = url.path[len("/api/"):]
                 try:
-                    result = server.app.handle(name, body, remote=self.is_remote,
-                                               client=(query.get("client") or [""])[0])
+                    result = server.app.handle(name, body, client=(query.get("client") or [""])[0])
                 except Exception as e:  # nie den Server abstuerzen lassen
                     return self._json({"error": f"Interner Fehler: {e}"}, 500)
                 if result is None:
@@ -197,8 +166,6 @@ class WebServer:
                     return self._send(404, b"Nicht gefunden", "text/plain; charset=utf-8")
                 with open(full, "rb") as f:
                     data = f.read()
-                cache = "max-age=86400" if ext in (".woff2", ".png") else "no-cache"
-                ctype = STATIC_TYPES.get(ext) or mimetypes.guess_type(full)[0] or "application/octet-stream"
-                self._send(200, data, ctype, cache)
+                self._send(200, data, STATIC_TYPES[ext], "no-cache")
 
         return Handler

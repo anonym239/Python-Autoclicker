@@ -5,8 +5,7 @@
 - Globale Hotkeys + Maustasten ueber Low-Level-Hooks (WH_KEYBOARD_LL /
   WH_MOUSE_LL). Der Maus-Hook wird nur installiert, wenn er gebraucht wird,
   damit die Maus im Spiel nie verzoegert wird.
-- Vordergrundfenster, Cursor-Zustand (Inventar offen?), Timer-Aufloesung,
-  Sounds, "Immer im Vordergrund".
+- Vordergrundfenster, Timer-Aufloesung, Sounds, "Immer im Vordergrund".
 """
 
 from __future__ import annotations
@@ -62,11 +61,6 @@ class MSLLHOOKSTRUCT(ctypes.Structure):
                 ("time", wt.DWORD), ("dwExtraInfo", ULONG_PTR)]
 
 
-class CURSORINFO(ctypes.Structure):
-    _fields_ = [("cbSize", wt.DWORD), ("flags", wt.DWORD),
-                ("hCursor", wt.HANDLE), ("ptScreenPos", wt.POINT)]
-
-
 HOOKPROC = ctypes.WINFUNCTYPE(LRESULT, ctypes.c_int, wt.WPARAM, wt.LPARAM)
 WNDENUMPROC = ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
 
@@ -103,14 +97,6 @@ user32.ShowWindow.argtypes = [wt.HWND, ctypes.c_int]
 user32.ShowWindow.restype = wt.BOOL
 user32.SetForegroundWindow.argtypes = [wt.HWND]
 user32.SetForegroundWindow.restype = wt.BOOL
-user32.GetCursorInfo.argtypes = [ctypes.POINTER(CURSORINFO)]
-user32.GetCursorInfo.restype = wt.BOOL
-user32.GetClipCursor.argtypes = [ctypes.POINTER(wt.RECT)]
-user32.GetClipCursor.restype = wt.BOOL
-user32.GetSystemMetrics.argtypes = [ctypes.c_int]
-user32.GetSystemMetrics.restype = ctypes.c_int
-user32.LoadCursorW.argtypes = [wt.HINSTANCE, ctypes.c_void_p]
-user32.LoadCursorW.restype = wt.HANDLE
 kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wt.BOOL, wt.LPCWSTR]
 kernel32.CreateMutexW.restype = wt.HANDLE
 kernel32.GetModuleHandleW.argtypes = [wt.LPCWSTR]
@@ -136,9 +122,6 @@ MOUSE_MSGS = {
     0x020B: ("x", True), 0x020C: ("x", False),
 }
 LLMHF_INJECTED = 0x01
-CURSOR_SHOWING = 0x01
-STANDARD_CURSORS = (32512, 32513, 32514, 32515, 32516, 32642, 32643, 32644,
-                    32645, 32646, 32648, 32649, 32650, 32651)
 HWND_TOPMOST, HWND_NOTOPMOST = -1, -2
 SWP_NOSIZE, SWP_NOMOVE, SWP_NOACTIVATE = 0x0001, 0x0002, 0x0010
 SW_RESTORE = 9
@@ -146,9 +129,7 @@ SW_RESTORE = 9
 SOUNDS = {
     "start": ((880, 60), (1320, 90)),
     "stop": ((660, 60), (440, 110)),
-    "tick": ((1000, 35),),
     "limit": ((523, 70), (659, 70), (784, 120)),
-    "profile": ((988, 45), (988, 45)),
 }
 
 
@@ -261,8 +242,6 @@ class WindowsBackend:
     has_global_input = True
 
     def __init__(self):
-        self._down = {b: _make_inputs(f[0]) for b, f in BUTTON_FLAGS.items()}
-        self._up = {b: _make_inputs(f[1]) for b, f in BUTTON_FLAGS.items()}
         self._both = {b: _make_inputs(*f) for b, f in BUTTON_FLAGS.items()}
         self._size = ctypes.sizeof(INPUT)
         self._timer_high = False
@@ -271,8 +250,6 @@ class WindowsBackend:
         self._events: queue.Queue = queue.Queue()
         self._dispatcher: threading.Thread | None = None
         self._sound_q: queue.Queue = queue.Queue()
-        self._std_cursors = {user32.LoadCursorW(None, ctypes.c_void_p(c)) for c in STANDARD_CURSORS}
-        self._std_cursors.discard(None)
         threading.Thread(target=self._sound_worker, name="sound", daemon=True).start()
 
     def claim_instance(self) -> None:
@@ -280,42 +257,14 @@ class WindowsBackend:
         self._mutex = kernel32.CreateMutexW(None, False, "AutoClicker6.Running")
 
     # ─── Klicks ──────────────────────────────────────────
-    def click(self, button: str, hold_s: float = 0.0) -> None:
-        if hold_s <= 0:
-            user32.SendInput(2, self._both[button], self._size)
-            return
-        user32.SendInput(1, self._down[button], self._size)
-        _precise_sleep(hold_s)
-        user32.SendInput(1, self._up[button], self._size)
+    def click(self, button: str) -> None:
+        """Druecken + Loslassen in einem SendInput-Aufruf."""
+        user32.SendInput(2, self._both[button], self._size)
 
-    def press(self, button: str) -> None:
-        user32.SendInput(1, self._down[button], self._size)
-
-    def release(self, button: str) -> None:
-        user32.SendInput(1, self._up[button], self._size)
-
-    # ─── Fenster / Cursor ────────────────────────────────
+    # ─── Fenster ─────────────────────────────────────────
     def foreground_title(self) -> str:
         hwnd = user32.GetForegroundWindow()
         return _window_text(hwnd) if hwnd else ""
-
-    def mouse_captured(self) -> bool | None:
-        """True, wenn die Maus von einem Spiel "gefangen" ist (Ingame),
-        False, wenn ein normaler Zeiger sichtbar ist (Inventar, Chat, Menue)."""
-        ci = CURSORINFO()
-        ci.cbSize = ctypes.sizeof(CURSORINFO)
-        if not user32.GetCursorInfo(ctypes.byref(ci)):
-            return None
-        if not (ci.flags & CURSOR_SHOWING) or not ci.hCursor:
-            return True  # versteckt (GLFW / neue Versionen)
-        if ci.hCursor not in self._std_cursors:
-            return True  # unsichtbarer Spiel-Cursor (LWJGL2 / 1.8.9)
-        clip = wt.RECT()
-        if user32.GetClipCursor(ctypes.byref(clip)):
-            vw, vh = user32.GetSystemMetrics(78), user32.GetSystemMetrics(79)
-            if (clip.right - clip.left) < vw or (clip.bottom - clip.top) < vh:
-                return True  # Maus im Fenster eingesperrt
-        return False
 
     def _find_windows(self, title_part: str):
         found = []
@@ -408,11 +357,3 @@ class WindowsBackend:
             except Exception:
                 pass
 
-
-def _precise_sleep(seconds: float) -> None:
-    import time
-    end = time.perf_counter() + seconds
-    if seconds > 0.002:
-        time.sleep(seconds - 0.0015)
-    while time.perf_counter() < end:
-        time.sleep(0)

@@ -2,7 +2,6 @@ import json
 import os
 import socket
 import tempfile
-import time
 import unittest
 import urllib.error
 import urllib.request
@@ -67,30 +66,35 @@ class ServerTests(unittest.TestCase):
         self.assertEqual((cur["cps"], cur["button"]), (12, "right"))
         self.req("/api/settings", {"preset": {"cps": 10, "button": "left"}})
 
-    def test_action_starts_countdown(self):
+    def test_action_starts_immediately(self):
         code, body = self.req("/api/action", {"do": "toggle"})
         self.assertEqual(code, 200)
-        time.sleep(0.05)
-        _, body = self.req("/api/state")
-        self.assertIsNotNone(json.loads(body)["engine"]["countdown"])
-        self.req("/api/action", {"do": "stop"})
+        self.assertTrue(json.loads(body)["engine"]["armed"])
+        code, body = self.req("/api/action", {"do": "stop"})
+        self.assertFalse(json.loads(body)["engine"]["armed"])
         code, body = self.req("/api/action", {"do": "explode"})
         self.assertEqual(code, 400)
 
-    def test_presets_and_record(self):
+    def test_presets_and_hotkeys(self):
         code, body = self.req("/api/preset", {"id": "boost"})
         self.assertEqual(json.loads(body)["config"]["mode"], "boost")
         code, body = self.req("/api/preset", {"id": "nope"})
         self.assertEqual(code, 400)
         self.req("/api/preset", {"id": "standard"})
-        code, body = self.req("/api/record", {})
-        self.assertTrue(json.loads(body)["recording"])
-        code, body = self.req("/api/record", {"key": "ctrl+x"})
+        # neuen Hotkey aufnehmen (im Demo-Modus kommt die Taste aus dem Browser)
+        code, body = self.req("/api/hotkeys", {"op": "record"})
+        self.assertEqual(json.loads(body)["recording"], "new")
+        code, body = self.req("/api/hotkeys", {"op": "key", "key": "ctrl+x"})
         st = json.loads(body)
-        self.assertEqual(st["config"]["hotkey"], "ctrl+x")
-        self.assertFalse(st["recording"])
-        self.req("/api/record", {})
-        self.req("/api/record", {"key": "f6"})
+        self.assertIsNone(st["recording"])
+        self.assertEqual(st["config"]["hotkeys"][-1], {"key": "ctrl+x", "action": "toggle"})
+        idx = len(st["config"]["hotkeys"]) - 1
+        code, body = self.req("/api/hotkeys", {"op": "action", "index": idx, "action": "off"})
+        self.assertEqual(json.loads(body)["config"]["hotkeys"][idx]["action"], "off")
+        code, body = self.req("/api/hotkeys", {"op": "delete", "index": idx})
+        self.assertNotIn("ctrl+x", [h["key"] for h in json.loads(body)["config"]["hotkeys"]])
+        code, body = self.req("/api/hotkeys", {"op": "delete", "index": 99})
+        self.assertEqual(code, 400)
 
     def test_static_files_and_traversal(self):
         code, body = self.req("/", token=False)
@@ -99,9 +103,6 @@ class ServerTests(unittest.TestCase):
         for path in ("/../clicker/app.py", "/%2e%2e/clicker/app.py", "/app.py", "/fonts/../../autoclicker.py"):
             code, _ = self.req(path, token=False)
             self.assertEqual(code, 404, path)
-        code, body = self.req("/api/qr.svg")
-        self.assertEqual(code, 200)
-        self.assertTrue(body.startswith(b"<svg"))
 
     def test_bad_json(self):
         r = urllib.request.Request(self.base + "/api/settings", data=b"{nope",
@@ -109,17 +110,6 @@ class ServerTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as cm:
             urllib.request.urlopen(r, timeout=3)
         self.assertEqual(cm.exception.code, 400)
-
-    def test_remote_toggle_rebinds(self):
-        code, body = self.req("/api/remote", {"enabled": True})
-        st = json.loads(body)
-        self.assertEqual(code, 200)
-        self.assertTrue(st["config"]["general"]["remote"])
-        self.assertEqual(self.app.server.host, "0.0.0.0")
-        time.sleep(0.1)
-        code, body = self.req("/api/remote", {"enabled": False})
-        self.assertFalse(json.loads(body)["config"]["general"]["remote"])
-        self.assertEqual(self.app.server.host, "127.0.0.1")
 
 
 if __name__ == "__main__":
