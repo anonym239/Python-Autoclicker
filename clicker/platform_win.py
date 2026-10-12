@@ -111,6 +111,8 @@ user32.GetSystemMetrics.argtypes = [ctypes.c_int]
 user32.GetSystemMetrics.restype = ctypes.c_int
 user32.LoadCursorW.argtypes = [wt.HINSTANCE, ctypes.c_void_p]
 user32.LoadCursorW.restype = wt.HANDLE
+kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wt.BOOL, wt.LPCWSTR]
+kernel32.CreateMutexW.restype = wt.HANDLE
 kernel32.GetModuleHandleW.argtypes = [wt.LPCWSTR]
 kernel32.GetModuleHandleW.restype = wt.HMODULE
 kernel32.GetCurrentThreadId.restype = wt.DWORD
@@ -272,6 +274,10 @@ class WindowsBackend:
         self._std_cursors = {user32.LoadCursorW(None, ctypes.c_void_p(c)) for c in STANDARD_CURSORS}
         self._std_cursors.discard(None)
         threading.Thread(target=self._sound_worker, name="sound", daemon=True).start()
+
+    def claim_instance(self) -> None:
+        """Benannter Mutex: der Installer erkennt so ein laufendes Programm."""
+        self._mutex = kernel32.CreateMutexW(None, False, "AutoClicker6.Running")
 
     # ─── Klicks ──────────────────────────────────────────
     def click(self, button: str, hold_s: float = 0.0) -> None:

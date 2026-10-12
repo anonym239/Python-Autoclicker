@@ -1,4 +1,4 @@
-/* AutoClicker v6 – Oberflaeche (PC-Fenster und Handy-Fernbedienung). */
+/* AutoClicker 6 – Oberflaeche (PC-Fenster und Handy). */
 (() => {
   "use strict";
 
@@ -9,9 +9,9 @@
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* egal */ } },
   };
 
-  // ─── Verbindung ─────────────────────────────────────────
+  // ─── Verbindung zum Programm ────────────────────────────
   const params = new URLSearchParams(location.search);
-  let token = params.get("t") || store.get("ac_token") || "";
+  const token = params.get("t") || store.get("ac_token") || "";
   if (params.get("t")) store.set("ac_token", token);
   const client = params.get("client") || "";
 
@@ -25,7 +25,6 @@
     const sep = path.includes("?") ? "&" : "?";
     const res = await fetch(path + sep + "client=" + encodeURIComponent(client), opts);
     const data = await res.json().catch(() => ({}));
-    if (res.status === 403) { const e = new Error("token"); e.code = 403; throw e; }
     if (!res.ok) { const e = new Error(data.error || "Fehler"); e.code = res.status; throw e; }
     return data;
   }
@@ -41,72 +40,50 @@
     },
   };
 
-  // ─── Zustand ────────────────────────────────────────────
-  let rev = -1;
-  let C = null;      // Konfiguration
-  let INFO = null;   // Programm-Infos
-  let E = null;      // Engine-Live-Status
-  let recording = null;
-  let lastNotice = 0;
-  let fails = 0;
-  let lastArmed = null;
-  const editing = new Map();
-
-  const fmt = new Intl.NumberFormat("de-DE");
-  const fmt1 = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
-  const num = (v, d = 1) => new Intl.NumberFormat("de-DE", { maximumFractionDigits: d }).format(v);
-
-  const KEY_LABELS = {
-    ctrl: "Strg", shift: "Shift", alt: "Alt", win: "Win", space: "Leertaste", enter: "Enter",
-    esc: "Esc", backspace: "⌫", tab: "Tab", capslock: "Caps", pageup: "Bild↑", pagedown: "Bild↓",
-    home: "Pos1", end: "Ende", insert: "Einfg", delete: "Entf", up: "↑", down: "↓", left: "←",
-    right: "→", printscreen: "Druck", pause: "Pause", scrolllock: "Rollen", numlock: "Num",
-    menu: "Menü", mouse3: "Maus 3", mouse4: "Maus 4", mouse5: "Maus 5", num_add: "Num +",
-    num_sub: "Num −", num_mul: "Num ×", num_div: "Num ÷", num_dec: "Num ,", semicolon: "Ü",
-    plus: "+", comma: ",", minus: "-", period: ".", slash: "#", backtick: "Ö", bracketleft: "ß",
-    backslash: "^", bracketright: "´", quote: "Ä", oem102: "<",
+  // ─── Texte ──────────────────────────────────────────────
+  const DESC = {
+    standard: "Drück den Hotkey: Es wird automatisch geklickt, bis du ihn nochmal drückst.",
+    pvp: "Hotkey drücken, dann im Spiel die Maustaste gedrückt halten. Solange du hältst, wird schnell geklickt.",
+    boost: "Hotkey drücken, dann ganz normal klicken. Zu jedem Klick kommen Extra-Klicks dazu, so steigen deine CPS.",
+    afk: "Klickt langsam weiter (1,6 CPS = Schwert-Cooldown ab 1.9). Ideal für Mob-Farmen.",
   };
-  function keyLabel(hk) {
-    if (!hk) return "—";
-    return hk.split("+").map((p) => KEY_LABELS[p] || (/^num\d$/.test(p) ? "Num " + p.slice(3) : p.toUpperCase())).join(" + ");
-  }
+  const STATUS = { idle: "Aus", ready: "Bereit", clicking: "Klickt", paused: "Pause", countdown: "Start" };
+  const KEY_LABELS = {
+    ctrl: "Strg", shift: "Shift", alt: "Alt", win: "Win", space: "Leertaste", enter: "Enter", esc: "Esc",
+    backspace: "⌫", tab: "Tab", capslock: "Caps", pageup: "Bild↑", pagedown: "Bild↓", home: "Pos1",
+    end: "Ende", insert: "Einfg", delete: "Entf", up: "↑", down: "↓", left: "←", right: "→",
+    printscreen: "Druck", pause: "Pause", scrolllock: "Rollen", numlock: "Num", menu: "Menü",
+    mouse3: "Maus 3", mouse4: "Maus 4", mouse5: "Maus 5", num_add: "Num +", num_sub: "Num −",
+    num_mul: "Num ×", num_div: "Num ÷", num_dec: "Num ,", semicolon: "Ü", plus: "+", comma: ",",
+    minus: "-", period: ".", slash: "#", backtick: "Ö", bracketleft: "ß", backslash: "^",
+    bracketright: "´", quote: "Ä", oem102: "<",
+  };
+  const keyLabel = (hk) => !hk ? "—" : hk.split("+").map((p) =>
+    KEY_LABELS[p] || (/^num\d$/.test(p) ? "Num " + p.slice(3) : p.toUpperCase())).join(" + ");
+  const nf = (v, d = 1) => new Intl.NumberFormat("de-DE", { maximumFractionDigits: d }).format(v);
+  const clock = (s) => {
+    s = Math.floor(s || 0);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+    return h ? `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}` : `${m}:${String(r).padStart(2, "0")}`;
+  };
 
-  const BUTTON_NAMES = { left: "Links", right: "Rechts", middle: "Mitte" };
-  const BUTTON_NAMES_LONG = { left: "linke", right: "rechte", middle: "mittlere" };
-  const MODE_NAMES = { toggle: "Umschalten", hold_mouse: "Maus halten", hold_key: "Taste halten" };
+  // ─── Zustand ────────────────────────────────────────────
+  let rev = -1, C = null, INFO = null, E = null, recording = false;
+  let lastNotice = 0, fails = 0, lastArmed = null, tourShown = false;
+  const edited = new Map();
+  const markEdit = (el) => edited.set(el.id, Date.now());
+  const canSet = (el) => document.activeElement !== el && Date.now() - (edited.get(el.id) || 0) > 1500;
+  const setVal = (el, v) => { if (canSet(el) && String(el.value) !== String(v)) el.value = v; };
+  const setChecked = (el, v) => { if (canSet(el)) el.checked = !!v; };
+  const pressed = (sel, val) => $$(sel + " [data-val]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.val === String(val))));
 
-  // ─── Hilfen ─────────────────────────────────────────────
-  function markEdit(el) { editing.set(el.id, Date.now()); }
-  function canSet(el) {
-    return document.activeElement !== el && Date.now() - (editing.get(el.id) || 0) > 1500;
-  }
-  function setVal(el, v) { if (canSet(el) && String(el.value) !== String(v)) el.value = v; }
-  function setChecked(el, v) { if (canSet(el)) el.checked = !!v; }
-  function pressed(container, val) {
-    $$(container + " [data-val]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.val === val)));
-  }
-  function debounce(fn, ms) {
-    let t = null;
-    return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
-  }
   let toastTimer = null;
   function toast(text) {
     const el = $("#toast");
     el.textContent = text;
     el.hidden = false;
-    el.style.animation = "none"; void el.offsetWidth; el.style.animation = "";
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
-  }
-  function clockTime(s) {
-    s = Math.floor(s || 0);
-    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-    return h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
-  }
-  function compact(n) {
-    if (n >= 1e6) return num(n / 1e6, 1) + " Mio";
-    if (n >= 1e5) return num(n / 1e3, 0) + "k";
-    return fmt.format(n);
+    toastTimer = setTimeout(() => { el.hidden = true; }, 2500);
   }
 
   async function send(name, body) {
@@ -115,559 +92,225 @@
       if (st && st.rev !== undefined) apply(st);
       return st;
     } catch (e) {
-      toast(e.code === 403 ? "Code ungültig – QR-Code neu scannen" : (e.message || "Fehler"));
+      toast(e.code === 403 ? "Code ungültig – QR-Code neu scannen" : e.message || "Fehler");
       return null;
     }
   }
 
-  // ─── Pixel-Hintergrund (Deepslate) ──────────────────────
-  (function texture() {
-    try {
-      const c = document.createElement("canvas");
-      c.width = c.height = 16;
-      const g = c.getContext("2d");
-      let seed = 7;
-      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-      for (let y = 0; y < 16; y++) {
-        for (let x = 0; x < 16; x++) {
-          const v = rnd();
-          const l = v < 0.08 ? 15 : v < 0.55 ? 21 : v < 0.93 ? 23 : 27;
-          g.fillStyle = `rgb(${l - 1},${l + 1},${l + 6})`;
-          g.fillRect(x, y, 1, 1);
-        }
-      }
-      document.documentElement.style.setProperty("--tex", `url(${c.toDataURL()})`);
-      document.body.style.imageRendering = "pixelated";
-    } catch (e) { /* Hintergrund ist optional */ }
-  })();
+  function applyTheme(theme) {
+    if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+    else delete document.documentElement.dataset.theme;
+    store.set("ac_theme", theme);
+  }
+  applyTheme(store.get("ac_theme") || "system");
 
-  const savedMat = store.get("ac_material");
-  if (savedMat) document.documentElement.dataset.material = savedMat;
-
-  // ─── Rendern: Konfiguration ─────────────────────────────
+  // ─── Anzeigen: Einstellungen ────────────────────────────
   function renderConfig() {
-    const p = C.profile;
-    document.documentElement.dataset.material = C.app.theme;
-    store.set("ac_material", C.app.theme);
+    const g = C.general, cur = C.current, mode = C.mode;
     document.body.classList.toggle("is-remote", !!INFO.remote_client);
+    applyTheme(g.theme);
+    $$(".preset").forEach((b) => b.setAttribute("aria-current", String(b.dataset.id === C.preset)));
+    const preset = C.presets.find((p) => p.id === C.preset);
+    $("#title").textContent = preset ? preset.name : "";
+    $("#desc").textContent = DESC[C.preset] || "";
 
-    // Profile
-    const box = $("#profiles");
-    const names = C.profiles.join("\u0000");
-    if (box.dataset.names !== names) {
-      box.dataset.names = names;
-      box.textContent = "";
-      C.profiles.forEach((n) => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "pchip";
-        b.setAttribute("role", "tab");
-        b.textContent = n;
-        b.addEventListener("click", () => send("profile", { op: "select", name: n }));
-        box.appendChild(b);
-      });
-    }
-    $$("#profiles .pchip").forEach((b) => b.setAttribute("aria-selected", String(b.textContent === C.active)));
-    const active = $("#profiles .pchip[aria-selected='true']");
-    if (active && box.dataset.active !== C.active) {
-      box.dataset.active = C.active;  // nur die Chip-Leiste scrollen, nie die Seite
-      const left = active.offsetLeft - box.offsetLeft;
-      if (left < box.scrollLeft || left + active.offsetWidth > box.scrollLeft + box.clientWidth) {
-        box.scrollLeft = Math.max(0, left - 12);
-      }
-    }
+    $("#row-speed").hidden = mode === "boost";
+    $("#row-boost").hidden = mode !== "boost";
+    if (canSet($("#speed"))) $("#speed").value = Math.min(30, cur.cps);
+    setVal($("#speed-num"), cur.cps);
+    pressed("#boost-seg", cur.boost);
+    pressed("#button-seg", cur.button);
+    $("#hotkey").textContent = recording ? "Taste drücken …" : keyLabel(C.hotkey);
+    $("#start-key").textContent = keyLabel(C.hotkey);
+    $("#start-key").hidden = !C.hotkey;
 
-    pressed("#button-seg", p.button);
-    pressed("#mode-seg", p.mode);
-    pressed("#action-seg", p.action);
-    const holdAllowed = p.mode === "toggle";
-    $("#act-hold").disabled = !holdAllowed;
-    $("#action-note").textContent = holdAllowed
-      ? "Dauerdrücken hält die Taste fest – ideal für AFK-Angeln oder Cobblestone abbauen."
-      : "Dauerdrücken gibt es nur im Modus „Umschalten“.";
-    const holding = p.action === "hold" && holdAllowed;
-    $("#speed-group").style.opacity = holding ? ".4" : "";
-    $("#speed-group").style.pointerEvents = holding ? "none" : "";
-
-    renderSpeed(p);
-    setVal($("#f-limit-s"), p.limit_seconds);
-    setVal($("#f-limit-c"), p.limit_clicks);
-    setVal($("#f-delay"), p.start_delay);
-    setVal($("#f-hold"), p.hold_ms);
-    setVal($("#f-pname"), p.name);
-
-    // Hotkeys
-    ["toggle", "stop", "next_profile"].forEach((slot) => {
-      const el = $("#hk-" + slot);
-      el.textContent = keyLabel(C.hotkeys[slot]);
-      el.classList.toggle("empty", !C.hotkeys[slot]);
-    });
-    $("#hk-toggle-desc").textContent = p.mode === "hold_key"
-      ? "Gedrückt halten = klicken (Modus „Taste halten“)"
-      : "Schaltet den Klicker an und aus";
-    $("#hooks-warn").hidden = !(INFO.backend === "windows" && !INFO.hooks_ok);
-
-    // Smart
-    setChecked($("#o-lock"), C.smart.window_lock);
-    setVal($("#o-match"), C.smart.window_match);
-    $("#o-match-wrap").style.opacity = C.smart.window_lock ? "" : ".5";
-    setChecked($("#o-menus"), C.smart.pause_in_menus);
-    setChecked($("#o-sound"), C.app.sound);
-    setChecked($("#o-top"), C.app.always_on_top);
-    $$("#materials [data-mat]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mat === C.app.theme)));
-
-    // Handy
-    setChecked($("#o-remote"), C.app.remote);
-    $("#remote-box").hidden = !C.app.remote;
-    if (C.app.remote) {
-      $("#remote-url").textContent = INFO.remote_url || "Keine Netzwerkverbindung gefunden";
+    setVal($("#o-stop"), g.auto_stop);
+    setVal($("#o-delay"), g.start_delay);
+    setChecked($("#o-vary"), g.vary);
+    setChecked($("#o-lock"), g.window_lock);
+    setVal($("#o-match"), g.window_match);
+    $("#o-match-row").hidden = !g.window_lock;
+    setChecked($("#o-top"), g.always_on_top);
+    setChecked($("#o-sound"), g.sound);
+    pressed("#theme-seg", g.theme);
+    setChecked($("#o-remote"), g.remote);
+    $("#remote-box").hidden = !g.remote;
+    if (g.remote) {
+      $("#remote-url").textContent = INFO.remote_url || "Keine WLAN-Verbindung gefunden";
       const src = api.qrUrl(rev);
       if ($("#qr").dataset.src !== src) { $("#qr").dataset.src = src; $("#qr").src = src; }
     }
     $("#remote-err").hidden = !INFO.remote_error;
-    $("#remote-err").textContent = INFO.remote_error ? "WLAN-Freigabe fehlgeschlagen: " + INFO.remote_error : "";
+    $("#remote-err").textContent = INFO.remote_error ? "Freigabe fehlgeschlagen: " + INFO.remote_error : "";
+    $("#version").textContent = `Version ${INFO.version}${INFO.backend === "demo" ? " · Demo" : ""}`;
+
+    if (!tourShown && !g.tutorial_done && !INFO.remote_client) { tourShown = true; openTour(); }
   }
 
-  function renderSpeed(p) {
-    const vary = p.cps_max - p.cps_min > 1e-9;
-    setChecked($("#vary"), vary);
-    $("#range2").classList.toggle("single", !vary);
-    $("#f-min-label").textContent = vary ? "Min CPS" : "CPS";
-    $("#f-max-wrap").hidden = !vary;
-    $("#f-ms-wrap").hidden = vary;
-    setVal($("#f-min"), +p.cps_min.toFixed(2));
-    setVal($("#f-max"), +p.cps_max.toFixed(2));
-    setVal($("#f-ms"), +(1000 / p.cps_min).toFixed(1));
-    const rMin = $("#r-min"), rMax = $("#r-max");
-    if (canSet(rMin)) rMin.value = Math.min(30, p.cps_min);
-    if (canSet(rMax)) rMax.value = Math.min(30, p.cps_max);
-    paintRange();
-    $("#speed-note").textContent = vary
-      ? `= ${num(1000 / p.cps_max)}–${num(1000 / p.cps_min)} ms pro Klick · zufällig`
-      : `= ${num(1000 / p.cps_min)} ms pro Klick`;
-    $$("#presets [data-cps]").forEach((b) => b.classList.toggle("on", !vary && Math.abs(+b.dataset.cps - p.cps_min) < 1e-6));
-  }
-
-  function paintRange() {
-    const lo = +$("#r-min").value, hi = +$("#r-max").value;
-    const vary = !$("#range2").classList.contains("single");
-    const pct = (v) => ((v - 1) / 29) * 100;
-    const fill = $("#range2-fill");
-    fill.style.left = (vary ? pct(Math.min(lo, hi)) : 0) + "%";
-    fill.style.right = (100 - pct(vary ? Math.max(lo, hi) : hi)) + "%";
-  }
-
-  // ─── Rendern: Live ──────────────────────────────────────
-  const STATE_TEXT = { idle: "AUS", ready: "BEREIT", clicking: "KLICKT", paused: "PAUSE", countdown: "START" };
-
+  // ─── Anzeigen: Live ─────────────────────────────────────
   function renderLive() {
     if (!E || !C) return;
-    const p = C.profile;
-    const hud = $(".hud");
-    const st = E.state;
-    hud.dataset.s = st;
-    const pill = $("#pill");
-    pill.dataset.s = st;
-    pill.textContent = st === "clicking" && E.holding ? "HÄLT" : STATE_TEXT[st] || st.toUpperCase();
-    $("#hud-mode").textContent = `${BUTTON_NAMES[p.button]} · ${MODE_NAMES[p.mode]}${p.action === "hold" && p.mode === "toggle" ? " · Dauerdrücken" : ""}`;
+    const st = E.state, mode = C.mode, hk = keyLabel(C.hotkey), btn = C.current.button === "right" ? "rechte" : "linke";
+    const status = $("#status");
+    status.dataset.s = st;
+    status.textContent = st === "countdown" ? `Start in ${Math.max(1, Math.ceil(E.countdown || 0))}` : STATUS[st] || st;
+    $(".live").dataset.s = st;
+    $("#cps").textContent = nf(E.cps);
+    $("#st-clicks").textContent = new Intl.NumberFormat("de-DE").format(E.session_clicks);
+    $("#st-time").textContent = clock(E.run_time);
+    $("#st-best").textContent = nf(E.best_cps);
 
-    $("#cps").textContent = fmt1.format(E.cps);
-    const vary = p.cps_max - p.cps_min > 1e-9;
-    $("#cps-target").textContent = p.action === "hold" && p.mode === "toggle"
-      ? "Taste wird gehalten statt geklickt"
-      : `Ziel ${vary ? num(p.cps_min) + "–" + num(p.cps_max) : num(p.cps_min)} CPS`;
-
-    const cd = $("#countdown");
-    cd.hidden = E.countdown === null || E.countdown === undefined;
-    if (!cd.hidden) $("#countdown-num").textContent = Math.max(1, Math.ceil(E.countdown));
-
-    // XP-Leiste: Auto-Stopp-Fortschritt oder Level
-    const xp = $("#xp");
-    if (E.limit_progress !== null && E.limit_progress !== undefined) {
-      xp.classList.add("limit");
-      $("#xp-level").textContent = Math.round(E.limit_progress * 100) + "%";
-      $("#xp-fill").style.width = (E.limit_progress * 100).toFixed(1) + "%";
-      const parts = [];
-      if (p.limit_clicks > 0) parts.push(`${fmt.format(E.run_clicks)} / ${fmt.format(p.limit_clicks)} Klicks`);
-      if (p.limit_seconds > 0) parts.push(`${clockTime(E.run_time)} / ${clockTime(p.limit_seconds)}`);
-      $("#xp-caption").textContent = "Auto-Stopp · " + parts.join(" · ");
-    } else {
-      xp.classList.remove("limit");
-      const life = E.lifetime_clicks;
-      const lvl = Math.floor(Math.sqrt(life / 100));
-      const a = 100 * lvl * lvl, b = 100 * (lvl + 1) * (lvl + 1);
-      $("#xp-level").textContent = lvl;
-      $("#xp-fill").style.width = (((life - a) / (b - a)) * 100).toFixed(1) + "%";
-      $("#xp-caption").textContent = `Level ${lvl} · ${fmt.format(life)} / ${fmt.format(b)} Klicks`;
-    }
-
-    $("#st-session").textContent = compact(E.session_clicks);
-    $("#st-best").textContent = fmt1.format(E.best_cps);
-    $("#st-time").textContent = clockTime(E.run_time);
-    $("#st-life").textContent = compact(E.lifetime_clicks);
-
-    // Grosser Knopf
-    const mega = $("#mega");
-    const hk = keyLabel(C.hotkeys.toggle);
-    mega.classList.remove("stop", "wait");
-    mega.disabled = false;
-    $("#mega-key").hidden = !C.hotkeys.toggle;
-    $("#mega-key").textContent = hk;
-    let hint;
-    if (p.mode === "hold_key") {
-      mega.disabled = true;
-      $("#mega-label").textContent = st === "clicking" ? "KLICKT" : "HALTEN";
-      hint = C.hotkeys.toggle ? `Halte ${hk} gedrückt, um zu klicken.` : "Lege im Tab Hotkeys eine Taste fest.";
-    } else if (st === "countdown") {
-      mega.classList.add("wait");
-      $("#mega-label").textContent = "ABBRUCH";
-      hint = "Jetzt mit der Maus ins Spiel wechseln.";
+    const start = $("#start");
+    start.classList.remove("stop", "wait");
+    start.disabled = false;
+    let label = "Start", hint;
+    if (st === "countdown") {
+      start.classList.add("wait"); label = "Abbrechen";
+      hint = "Jetzt ins Spiel wechseln …";
     } else if (E.armed) {
-      mega.classList.add("stop");
-      $("#mega-label").textContent = "STOPP";
-      hint = {
-        ready: p.mode === "hold_mouse" ? `Bereit – halte im Spiel die ${BUTTON_NAMES_LONG[p.button]} Maustaste.` : "Bereit.",
-        clicking: E.holding ? "Taste wird gedrückt gehalten." : "Klickt an der aktuellen Mausposition.",
-        paused: {
-          window: "Pause – Minecraft ist nicht im Vordergrund.",
-          menu: "Pause – Inventar, Chat oder Menü ist offen.",
-          self: "Pause – klickt nicht ins AutoClicker-Fenster.",
-        }[E.reason] || "Pause.",
-      }[st] || "";
+      start.classList.add("stop"); label = "Stopp";
+      if (st === "paused") hint = E.reason === "self" ? "Pause – in dieses Fenster wird nicht geklickt." : "Pause – Minecraft ist nicht im Vordergrund.";
+      else if (mode === "hold_mouse") hint = st === "clicking" ? "Klickt, solange du hältst." : `Bereit – halte die ${btn} Maustaste gedrückt.`;
+      else if (mode === "boost") hint = st === "clicking" ? "Boost!" : "Bereit – klick einfach ganz normal.";
+      else hint = "Klickt dort, wo die Maus gerade ist.";
     } else {
-      $("#mega-label").textContent = "START";
-      hint = C.hotkeys.toggle
-        ? `${hk} drücken – auch während Minecraft im Vordergrund ist.`
-        : "Start per Knopf: 3 s Countdown.";
+      hint = C.hotkey ? `Drück ${hk} – auch mitten im Spiel.` : "Klick auf das Hotkey-Feld und wähle eine Taste.";
       if (E.stop_reason === "limit") hint = "Auto-Stopp erreicht.";
     }
-    $("#hud-hint").textContent = hint;
+    $("#start-label").textContent = label;
+    $("#hint").textContent = recording ? "Drück jetzt die neue Taste (Esc = abbrechen)." : hint;
+    $("#hotkey").classList.toggle("rec", recording);
+    $("#hotkey").textContent = recording ? "Taste drücken …" : hk;
 
-    drawGraph();
-
-    // Aufnahme-Dialog
-    const modal = $("#rec-modal");
-    const was = !modal.hidden;
-    modal.hidden = !recording;
-    if (recording && !was) {
-      const f = $("#rec-timer-fill");
-      f.style.transition = "none"; f.style.transform = "scaleX(1)"; void f.offsetWidth;
-      f.style.transition = "transform 15s linear"; f.style.transform = "scaleX(0)";
-    }
-
-    // Handy: Vibration + Bildschirm wach halten
-    if (lastArmed !== null && lastArmed !== E.armed && INFO && INFO.remote_client && store.get("ac_vibrate") === "1") {
-      try { navigator.vibrate && navigator.vibrate(E.armed ? [40, 60, 40] : 120); } catch (e) { /* egal */ }
+    if (lastArmed !== null && lastArmed !== E.armed && INFO && INFO.remote_client) {
+      try { navigator.vibrate && navigator.vibrate(E.armed ? 40 : 90); } catch (e) { /* egal */ }
     }
     lastArmed = E.armed;
-    wakeLock(INFO && INFO.remote_client && (E.armed || st === "countdown"));
   }
 
-  let lock = null;
-  async function wakeLock(on) {
-    try {
-      if (on && !lock && navigator.wakeLock && !document.hidden) {
-        lock = await navigator.wakeLock.request("screen");
-        lock.addEventListener("release", () => { lock = null; });
-      } else if (!on && lock) {
-        await lock.release();
-        lock = null;
-      }
-    } catch (e) { lock = null; }
-  }
-
-  // ─── CPS-Graph (Treppen-Linie, Pixel-Stil) ──────────────
-  function drawGraph() {
-    const cv = $("#graph");
-    const w = cv.clientWidth, h = cv.clientHeight;
-    if (!w || !h) return;
-    const dpr = window.devicePixelRatio || 1;
-    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
-      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-    }
-    const g = cv.getContext("2d");
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.clearRect(0, 0, w, h);
-    const css = getComputedStyle(document.documentElement);
-    const accent = css.getPropertyValue("--accent").trim() || "#7ccf4a";
-    const hi = css.getPropertyValue("--hi").trim();
-    const dim = css.getPropertyValue("--dim").trim();
-    const data = E.history || [];
-    const p = C.profile;
-    const peak = Math.max(...data, 0);
-    const clickMode = !(p.action === "hold" && p.mode === "toggle");
-    let top = Math.max(5, clickMode ? p.cps_max * 1.25 : 0, peak * 1.1);
-    const step = niceStep(top / 3);
-    top = Math.ceil(top / step) * step;
-    const padL = 26, padB = 4, padT = 4;
-    const iw = w - padL, ih = h - padB - padT;
-    const y = (v) => padT + ih - (v / top) * ih;
-
-    g.font = "11px 'Jersey 15', monospace";
-    g.textBaseline = "middle";
-    g.lineWidth = 1;
-    for (let v = 0; v <= top + 1e-9; v += step) {
-      const yy = Math.round(y(v)) + 0.5;
-      g.strokeStyle = hi; g.globalAlpha = 0.55;
-      g.beginPath(); g.moveTo(padL, yy); g.lineTo(w, yy); g.stroke();
-      g.globalAlpha = 1; g.fillStyle = dim;
-      g.fillText(fmt.format(v), 0, Math.min(h - 6, Math.max(6, yy)));
-    }
-    if (clickMode) {  // Zielbereich
-      g.fillStyle = accent; g.globalAlpha = 0.1;
-      const y1 = y(Math.min(top, p.cps_max)), y2 = y(Math.min(top, p.cps_min));
-      g.fillRect(padL, y1 - (y2 - y1 < 2 ? 1 : 0), iw, Math.max(2, y2 - y1));
-      g.globalAlpha = 1;
-    }
-    if (!data.length) return;
-    const n = data.length, bw = iw / n;
-    g.beginPath();
-    g.moveTo(padL, y(0));
-    data.forEach((v, i) => { g.lineTo(padL + i * bw, y(v)); g.lineTo(padL + (i + 1) * bw, y(v)); });
-    g.lineTo(padL + iw, y(0));
-    g.closePath();
-    g.fillStyle = accent; g.globalAlpha = 0.22; g.fill(); g.globalAlpha = 1;
-    g.beginPath();
-    data.forEach((v, i) => {
-      const x0 = padL + i * bw, yy = Math.round(y(v)) + 0.5;
-      if (i === 0) g.moveTo(x0, yy); else g.lineTo(x0, yy);
-      g.lineTo(x0 + bw, yy);
-    });
-    g.strokeStyle = accent; g.lineWidth = 2; g.stroke();
-    const last = data[n - 1];
-    g.fillStyle = accent;
-    g.fillRect(padL + iw - 5, Math.round(y(last)) - 3, 5, 6);
-  }
-  function niceStep(raw) {
-    const p = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1e-6))));
-    const m = raw / p;
-    return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
-  }
-
-  // ─── Daten anwenden & Abfrage-Schleife ──────────────────
   function apply(st) {
-    if (st.config) {
-      C = st.config;
-      INFO = st.info;
-      rev = st.rev;
-      renderConfig();
-    }
+    if (st.config) { C = st.config; INFO = st.info; rev = st.rev; }
     E = st.engine;
-    recording = st.recording;
-    if (st.notice && st.notice.id !== lastNotice) {
-      lastNotice = st.notice.id;
-      toast(st.notice.text);
-    }
+    recording = !!st.recording;
+    if (st.config) renderConfig();
+    if (st.notice && st.notice.id !== lastNotice) { lastNotice = st.notice.id; toast(st.notice.text); }
     renderLive();
-  }
-
-  function online(ok, why) {
-    const conn = $("#conn");
-    conn.classList.toggle("ok", ok);
-    conn.classList.toggle("bad", !ok);
-    $("#conn-text").textContent = ok
-      ? (INFO && INFO.remote_client ? "Mit PC verbunden" : INFO && INFO.backend === "demo" ? "Demo · Klicks simuliert" : "Hotkeys aktiv")
-      : "Getrennt";
-    if (INFO && INFO.backend === "windows" && !INFO.hooks_ok && ok) $("#conn-text").textContent = "Ohne Hotkeys";
-    $("#offline").hidden = ok || fails < 3;
-    if (why) $("#offline-text").textContent = why;
   }
 
   async function poll() {
     try {
-      const st = await api.state(rev);
+      apply(await api.state(rev));
       fails = 0;
-      apply(st);
-      online(true);
+      $("#offline").hidden = true;
     } catch (e) {
       fails++;
-      online(false, e.code === 403
-        ? "Der Code ist ungültig. Scanne den QR-Code im Tab „Handy“ am PC neu."
-        : "Läuft das Programm auf dem PC noch? Neuer Versuch läuft …");
+      if (fails >= 3) {
+        $("#offline").hidden = false;
+        $("#offline-text").textContent = e.code === 403
+          ? "Der Code ist ungültig. Scanne den QR-Code am PC neu (Einstellungen → Handy)."
+          : "Läuft der AutoClicker auf dem PC noch? Neuer Versuch läuft …";
+      }
     }
-    const remote = INFO && INFO.remote_client;
-    setTimeout(poll, document.hidden ? 1000 : remote ? 350 : 200);
+    setTimeout(poll, document.hidden ? 1000 : INFO && INFO.remote_client ? 350 : 200);
   }
 
   // ─── Eingaben ───────────────────────────────────────────
-  const sendProfile = (() => {
-    let patch = {};
-    const flush = debounce(() => { const p = patch; patch = {}; send("settings", { profile: p }); }, 220);
-    return (part) => {
-      Object.assign(patch, part);
-      if (C) { Object.assign(C.profile, part); renderConfig(); renderLive(); }
-      flush();
-    };
-  })();
-
-  function bindSeg(sel, key) {
-    $$(sel + " [data-val]").forEach((b) => b.addEventListener("click", () => {
-      if (b.disabled) return;
-      const part = { [key]: b.dataset.val };
-      if (key === "mode" && b.dataset.val !== "toggle" && C && C.profile.action === "hold") part.action = "click";
-      sendProfile(part);
-    }));
+  let presetPatch = {}, presetTimer = null;
+  function sendPreset(part) {
+    Object.assign(presetPatch, part);
+    if (C) { Object.assign(C.current, part); renderConfig(); renderLive(); }
+    clearTimeout(presetTimer);
+    presetTimer = setTimeout(() => { const p = presetPatch; presetPatch = {}; send("settings", { preset: p }); }, 200);
   }
-  bindSeg("#button-seg", "button");
-  bindSeg("#mode-seg", "mode");
-  bindSeg("#action-seg", "action");
-
-  function clampCps(v) { return Math.min(1000, Math.max(0.1, Math.round(v * 100) / 100)); }
-  function round05(v) { return Math.max(0.5, Math.round(v * 2) / 2); }
-
-  $("#vary").addEventListener("change", (e) => {
-    markEdit(e.target);
-    const p = C.profile;
-    if (e.target.checked) {
-      const c = p.cps_min;
-      sendProfile({ cps_min: clampCps(round05(c * 0.85)), cps_max: clampCps(round05(c * 1.15) + (c < 4 ? 1 : 0)) });
-    } else {
-      const mid = clampCps(Math.round(((p.cps_min + p.cps_max) / 2) * 10) / 10);
-      sendProfile({ cps_min: mid, cps_max: mid });
-    }
-  });
-
-  ["#r-min", "#r-max"].forEach((sel) => $(sel).addEventListener("input", (e) => {
-    markEdit(e.target);
-    let lo = +$("#r-min").value, hi = +$("#r-max").value;
-    const single = $("#range2").classList.contains("single");
-    if (single) { lo = hi; }
-    else if (lo > hi) { if (sel === "#r-min") hi = lo; else lo = hi; }
-    $("#r-min").value = lo; $("#r-max").value = hi;
-    paintRange();
-    sendProfile({ cps_min: lo, cps_max: hi });
-  }));
-
-  function numberInput(sel, handler) {
-    const el = $(sel);
-    const go = () => { const v = parseFloat(String(el.value).replace(",", ".")); if (!isNaN(v)) handler(v); };
-    el.addEventListener("input", () => { markEdit(el); debounceMap(sel, go); });
-    el.addEventListener("change", () => { markEdit(el); go(); });
+  function sendGeneral(part) {
+    if (C) Object.assign(C.general, part);
+    send("settings", { general: part });
   }
-  const timers = {};
-  function debounceMap(key, fn) { clearTimeout(timers[key]); timers[key] = setTimeout(fn, 500); }
 
-  numberInput("#f-min", (v) => {
-    v = clampCps(v);
-    const vary = $("#vary").checked;
-    if (!vary) sendProfile({ cps_min: v, cps_max: v });
-    else sendProfile({ cps_min: v, cps_max: Math.max(v, C.profile.cps_max) });
-  });
-  numberInput("#f-max", (v) => { v = clampCps(v); sendProfile({ cps_max: v, cps_min: Math.min(v, C.profile.cps_min) }); });
-  numberInput("#f-ms", (v) => { if (v > 0) { const c = clampCps(1000 / v); sendProfile({ cps_min: c, cps_max: c }); } });
-  numberInput("#f-limit-s", (v) => sendProfile({ limit_seconds: Math.max(0, v) }));
-  numberInput("#f-limit-c", (v) => sendProfile({ limit_clicks: Math.max(0, Math.round(v)) }));
-  numberInput("#f-delay", (v) => sendProfile({ start_delay: Math.max(0, Math.min(60, v)) }));
-  numberInput("#f-hold", (v) => sendProfile({ hold_ms: Math.max(0, Math.min(500, v)) }));
+  $$(".preset").forEach((b) => b.addEventListener("click", () => send("preset", { id: b.dataset.id })));
+  $$("#button-seg [data-val]").forEach((b) => b.addEventListener("click", () => sendPreset({ button: b.dataset.val })));
+  $$("#boost-seg [data-val]").forEach((b) => b.addEventListener("click", () => sendPreset({ boost: +b.dataset.val })));
+  $("#speed").addEventListener("input", (e) => { markEdit(e.target); sendPreset({ cps: +e.target.value }); });
 
-  $$("#presets [data-cps]").forEach((b) => b.addEventListener("click", () => {
-    const c = +b.dataset.cps;
-    if ($("#vary").checked && c >= 4) sendProfile({ cps_min: clampCps(round05(c * 0.85)), cps_max: clampCps(round05(c * 1.15)) });
-    else sendProfile({ cps_min: c, cps_max: c });
-  }));
+  function numberInput(el, fn) {
+    let t = null;
+    const go = () => { const v = parseFloat(String(el.value).replace(",", ".")); if (!isNaN(v)) fn(v); };
+    el.addEventListener("input", () => { markEdit(el); clearTimeout(t); t = setTimeout(go, 500); });
+    el.addEventListener("change", () => { markEdit(el); clearTimeout(t); go(); });
+  }
+  numberInput($("#speed-num"), (v) => sendPreset({ cps: Math.min(1000, Math.max(0.1, v)) }));
+  numberInput($("#o-stop"), (v) => sendGeneral({ auto_stop: Math.max(0, v) }));
+  numberInput($("#o-delay"), (v) => sendGeneral({ start_delay: Math.max(0, Math.min(60, v)) }));
+  [["#o-vary", "vary"], ["#o-lock", "window_lock"], ["#o-top", "always_on_top"], ["#o-sound", "sound"]].forEach(([sel, key]) =>
+    $(sel).addEventListener("change", (e) => { markEdit(e.target); sendGeneral({ [key]: e.target.checked }); }));
+  $("#o-match").addEventListener("change", (e) => { markEdit(e.target); sendGeneral({ window_match: e.target.value }); });
+  $$("#theme-seg [data-val]").forEach((b) => b.addEventListener("click", () => { applyTheme(b.dataset.val); sendGeneral({ theme: b.dataset.val }); }));
 
-  // Profile verwalten
-  $("#f-pname").addEventListener("change", (e) => {
-    markEdit(e.target);
-    const v = e.target.value.trim();
-    if (v && C && v !== C.profile.name) send("profile", { op: "rename", name: C.active, new_name: v });
-  });
-  $("#f-pname").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); });
-  $("#p-dup").addEventListener("click", () => send("profile", { op: "duplicate" }));
-  $("#p-new").addEventListener("click", () => send("profile", { op: "create", new_name: "Profil" }));
-  let delArmed = 0;
-  $("#p-del").addEventListener("click", () => {
-    const btn = $("#p-del");
-    if (Date.now() - delArmed < 3000) {
-      delArmed = 0; btn.classList.remove("armed"); $("#p-del-confirm").hidden = true;
-      send("profile", { op: "delete", name: C.active });
-    } else {
-      delArmed = Date.now(); btn.classList.add("armed"); $("#p-del-confirm").hidden = false;
-      setTimeout(() => { if (Date.now() - delArmed >= 2900) { btn.classList.remove("armed"); $("#p-del-confirm").hidden = true; } }, 3050);
-    }
-  });
-
-  // Smart / App
-  const sendSmart = (part) => { if (C) Object.assign(C.smart, part); send("settings", { smart: part }); };
-  const sendApp = (part) => { if (C) Object.assign(C.app, part); send("settings", { app: part }); };
-  $("#o-lock").addEventListener("change", (e) => { markEdit(e.target); sendSmart({ window_lock: e.target.checked }); });
-  $("#o-match").addEventListener("change", (e) => { markEdit(e.target); sendSmart({ window_match: e.target.value }); });
-  $("#o-menus").addEventListener("change", (e) => { markEdit(e.target); sendSmart({ pause_in_menus: e.target.checked }); });
-  $("#o-sound").addEventListener("change", (e) => { markEdit(e.target); sendApp({ sound: e.target.checked }); });
-  $("#o-top").addEventListener("change", (e) => { markEdit(e.target); sendApp({ always_on_top: e.target.checked }); });
-  $$("#materials [data-mat]").forEach((b) => b.addEventListener("click", () => {
-    document.documentElement.dataset.material = b.dataset.mat;
-    store.set("ac_material", b.dataset.mat);
-    sendApp({ theme: b.dataset.mat });
-  }));
-
-  // Handy
   $("#o-remote").addEventListener("change", (e) => { markEdit(e.target); send("remote", { enabled: e.target.checked }); });
-  $("#new-token").addEventListener("click", () => send("remote", { new_token: true }));
   $("#copy-url").addEventListener("click", async () => {
-    const text = $("#remote-url").textContent;
-    try { await navigator.clipboard.writeText(text); toast("Adresse kopiert"); }
+    try { await navigator.clipboard.writeText($("#remote-url").textContent); toast("Adresse kopiert"); }
     catch (e) {
       const r = document.createRange(); r.selectNodeContents($("#remote-url"));
       const s = getSelection(); s.removeAllRanges(); s.addRange(r);
       toast("Markiert – jetzt Strg+C");
     }
   });
-  $("#o-vibrate").checked = store.get("ac_vibrate") === "1";
-  $("#o-vibrate").addEventListener("change", (e) => store.set("ac_vibrate", e.target.checked ? "1" : "0"));
 
-  // Start / Stopp / Statistik
-  $("#mega").addEventListener("click", () => send("action", { do: "toggle" }));
-  $("#reset-stats").addEventListener("click", async () => {
-    await send("action", { do: "reset_stats" });
-    toast("Statistik zurückgesetzt");
+  $("#start").addEventListener("click", () => send("action", { do: "toggle" }));
+  $("#reset-stats").addEventListener("click", async () => { await send("action", { do: "reset_stats" }); toast("Statistik zurückgesetzt"); });
+
+  // Einstellungen
+  const openSettings = () => { $("#settings").hidden = false; };
+  const closeOverlays = () => { $("#settings").hidden = true; };
+  $("#settings-btn").addEventListener("click", openSettings);
+  $("#settings").addEventListener("click", (e) => { if (e.target.id === "settings" || e.target.closest("[data-close]")) closeOverlays(); });
+
+  // ─── Anleitung (3 Schritte) ─────────────────────────────
+  const TOUR = [
+    { t: "Modus wählen", p: "Links wählst du, wie geklickt wird: Standard, Minecraft PvP (Maustaste halten), CPS-Boost (jeder Klick zählt doppelt) oder AFK-Farm.",
+      i: '<svg viewBox="0 0 24 24"><path d="M3 5h18v2H3zm0 6h18v2H3zm0 6h12v2H3z"/></svg>' },
+    { t: "Tempo einstellen", p: "Mit dem Regler stellst du ein, wie viele Klicks pro Sekunde (CPS) es sein sollen. Beim Boost wählst du ×2 oder ×3.",
+      i: '<svg viewBox="0 0 24 24"><path d="M3 11h11v2H3zm15 0h3v2h-3zM14 8h2v8h-2z"/></svg>' },
+    { t: "Starten", p: "Drück F6 – das geht auch mitten im Spiel. Nochmal F6 stoppt. Den Hotkey änderst du, indem du auf das Tasten-Feld klickst.",
+      i: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>' },
+  ];
+  let tourStep = 0;
+  function renderTour() {
+    const s = TOUR[tourStep];
+    $("#tour-art").innerHTML = s.i;
+    $("#tour-title").textContent = s.t;
+    $("#tour-text").textContent = tourStep === 2 && C ? s.p.replace(/F6/g, keyLabel(C.hotkey)) : s.p;
+    $$("#tour-dots i").forEach((d, i) => d.classList.toggle("on", i === tourStep));
+    $("#tour-next").textContent = tourStep === TOUR.length - 1 ? "Los geht's" : "Weiter";
+  }
+  function openTour() { tourStep = 0; renderTour(); $("#tutorial").hidden = false; }
+  function closeTour() {
+    $("#tutorial").hidden = true;
+    if (C && !C.general.tutorial_done && !(INFO && INFO.remote_client)) sendGeneral({ tutorial_done: true });
+  }
+  $("#help-btn").addEventListener("click", openTour);
+  $("#tour-skip").addEventListener("click", closeTour);
+  $("#tour-next").addEventListener("click", () => { if (tourStep < TOUR.length - 1) { tourStep++; renderTour(); } else closeTour(); });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !recording) { closeOverlays(); if (!$("#tutorial").hidden) closeTour(); }
   });
 
-  // Tabs
-  function showTab(name) {
-    $$(".tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === name)));
-    $$(".tab-body").forEach((b) => { b.hidden = b.dataset.body !== name; });
-    store.set("ac_tab", name);
-    if (name === "click") requestAnimationFrame(paintRange);
-  }
-  $$(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
-  showTab(store.get("ac_tab") || "click");
-
-  // ─── Hotkey-Aufnahme ────────────────────────────────────
-  $$("[data-rec]").forEach((b) => b.addEventListener("click", () => send("record", { slot: b.dataset.rec })));
-  $$("[data-clear]").forEach((b) => b.addEventListener("click", () => send("record", { slot: b.dataset.clear, key: "" })));
-  $("#rec-cancel").addEventListener("click", () => send("record", { cancel: true }));
-
+  // ─── Hotkey ändern ──────────────────────────────────────
+  $("#hotkey").addEventListener("click", () => send("record", recording ? { cancel: true } : {}));
   const CODE_NAMES = {
-    Space: "space", Enter: "enter", NumpadEnter: "enter", Tab: "tab", Backspace: "backspace",
-    Home: "home", End: "end", PageUp: "pageup", PageDown: "pagedown", Insert: "insert",
-    Delete: "delete", ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
-    CapsLock: "capslock", Pause: "pause", ScrollLock: "scrolllock", NumLock: "numlock",
-    PrintScreen: "printscreen", ContextMenu: "menu", NumpadAdd: "num_add", NumpadSubtract: "num_sub",
-    NumpadMultiply: "num_mul", NumpadDivide: "num_div", NumpadDecimal: "num_dec",
-    ShiftLeft: "shift", ShiftRight: "shift", ControlLeft: "ctrl", ControlRight: "ctrl",
-    AltLeft: "alt", AltRight: "alt", MetaLeft: "win", MetaRight: "win", Semicolon: "semicolon",
-    Equal: "plus", Comma: "comma", Minus: "minus", Period: "period", Slash: "slash",
-    Backquote: "backtick", BracketLeft: "bracketleft", Backslash: "backslash",
-    BracketRight: "bracketright", Quote: "quote", IntlBackslash: "oem102",
+    Space: "space", Enter: "enter", NumpadEnter: "enter", Tab: "tab", Backspace: "backspace", Home: "home",
+    End: "end", PageUp: "pageup", PageDown: "pagedown", Insert: "insert", Delete: "delete", ArrowUp: "up",
+    ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", CapsLock: "capslock", Pause: "pause",
+    ScrollLock: "scrolllock", NumLock: "numlock", PrintScreen: "printscreen", ContextMenu: "menu",
+    NumpadAdd: "num_add", NumpadSubtract: "num_sub", NumpadMultiply: "num_mul", NumpadDivide: "num_div",
+    NumpadDecimal: "num_dec", ShiftLeft: "shift", ShiftRight: "shift", ControlLeft: "ctrl", ControlRight: "ctrl",
+    AltLeft: "alt", AltRight: "alt", MetaLeft: "win", MetaRight: "win",
   };
-  function codeName(code) {
-    if (/^F\d{1,2}$/.test(code)) return code.toLowerCase();
-    if (/^Key[A-Z]$/.test(code)) return code.slice(3).toLowerCase();
-    if (/^Digit\d$/.test(code)) return code.slice(5);
-    if (/^Numpad\d$/.test(code)) return "num" + code.slice(6);
-    return CODE_NAMES[code] || null;
-  }
+  const codeName = (c) => /^F\d{1,2}$/.test(c) ? c.toLowerCase() : /^Key[A-Z]$/.test(c) ? c.slice(3).toLowerCase()
+    : /^Digit\d$/.test(c) ? c.slice(5) : /^Numpad\d$/.test(c) ? "num" + c.slice(6) : CODE_NAMES[c] || null;
   const MODS = ["ctrl", "shift", "alt", "win"];
-  function modsOf(e, except) {
-    const m = [];
-    if (e.ctrlKey) m.push("ctrl");
-    if (e.shiftKey) m.push("shift");
-    if (e.altKey) m.push("alt");
-    if (e.metaKey) m.push("win");
-    return m.filter((x) => x !== except);
-  }
-  // Ohne globale Hooks (Demo) nimmt der Browser die Taste auf; unter Windows macht das der Hook.
+  const modsOf = (e, except) => [e.ctrlKey && "ctrl", e.shiftKey && "shift", e.altKey && "alt", e.metaKey && "win"].filter((m) => m && m !== except);
+  // Unter Windows nimmt der globale Hook die Taste auf; ohne Hook (Demo) macht es der Browser.
   const browserRecords = () => !INFO || INFO.backend !== "windows";
   let pendingMod = null;
   window.addEventListener("keydown", (e) => {
@@ -679,32 +322,26 @@
     if (!name) return;
     if (MODS.includes(name)) { pendingMod = name; return; }
     pendingMod = null;
-    if (browserRecords()) send("record", { slot: recording, key: [...modsOf(e), name].join("+") });
+    if (browserRecords()) send("record", { key: [...modsOf(e), name].join("+") });
   }, true);
   window.addEventListener("keyup", (e) => {
     if (!recording) return;
     e.preventDefault();
     const name = codeName(e.code);
-    if (name && name === pendingMod && browserRecords()) {
-      send("record", { slot: recording, key: [...modsOf(e, name), name].join("+") });
-    }
+    if (name && name === pendingMod && browserRecords()) send("record", { key: [...modsOf(e, name), name].join("+") });
     pendingMod = null;
   }, true);
   window.addEventListener("mousedown", (e) => {
     if (!recording || e.button === 0 || e.button === 2) return;
     e.preventDefault();
     const name = { 1: "mouse3", 3: "mouse4", 4: "mouse5" }[e.button];
-    if (name && browserRecords()) send("record", { slot: recording, key: [...modsOf(e), name].join("+") });
+    if (name && browserRecords()) send("record", { key: [...modsOf(e), name].join("+") });
   }, true);
-  window.addEventListener("contextmenu", (e) => { if (recording) e.preventDefault(); });
-  window.addEventListener("resize", () => { if (E && C) { drawGraph(); paintRange(); } });
 
-  // Fenster geschlossen -> Programm beenden (nur das PC-Fenster)
   window.addEventListener("pagehide", () => api.bye());
-
   if (!token && !window.AC_MOCK) {
     $("#offline").hidden = false;
-    $("#offline-text").textContent = "Code fehlt. Öffne die Seite über den QR-Code im Tab „Handy“ am PC.";
+    $("#offline-text").textContent = "Code fehlt. Öffne die Seite über den QR-Code am PC (Einstellungen → Handy).";
   }
   poll();
 })();

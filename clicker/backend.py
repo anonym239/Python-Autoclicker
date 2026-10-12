@@ -53,6 +53,9 @@ class DemoBackend:
     def focus_window(self, title_part: str) -> bool:
         return False
 
+    def claim_instance(self) -> None:
+        pass
+
     def start_input(self, matcher) -> None:
         pass
 

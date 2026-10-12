@@ -13,7 +13,7 @@ import subprocess
 import sys
 import webbrowser
 
-WINDOW_SIZE = (980, 720)
+WINDOW_SIZE = (840, 600)
 
 
 def _candidates():
@@ -43,7 +43,7 @@ def find_browser() -> str | None:
 
 def profile_dir(fallback_folder: str) -> str:
     base = os.environ.get("LOCALAPPDATA")
-    path = os.path.join(base, "AutoClickerV6", "window") if base else \
+    path = os.path.join(base, "AutoClicker", "window") if base else \
         os.path.join(fallback_folder, ".window-profile")
     os.makedirs(path, exist_ok=True)
     return path

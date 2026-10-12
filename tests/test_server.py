@@ -51,25 +51,25 @@ class ServerTests(unittest.TestCase):
         code, _ = self.req("/api/action", {"do": "toggle"}, token=False)
         self.assertEqual(code, 403)
         code, body = self.req("/api/ping", token=False)
-        self.assertEqual(json.loads(body)["app"], "AutoClicker v6")
+        self.assertEqual(json.loads(body)["app"], "AutoClicker")
 
     def test_state_and_settings(self):
         code, body = self.req("/api/state")
         st = json.loads(body)
         self.assertEqual(code, 200)
-        self.assertIn("config", st)
         self.assertEqual(st["info"]["backend"], "demo")
+        self.assertNotIn("token", st["config"]["general"])
+        self.assertEqual([p["id"] for p in st["config"]["presets"]], ["standard", "pvp", "boost", "afk"])
         code, body = self.req(f"/api/state?since={st['rev']}")
         self.assertNotIn("config", json.loads(body))
-        code, body = self.req("/api/settings", {"profile": {"cps_min": 8, "cps_max": 12, "button": "right"}})
-        p = json.loads(body)["config"]["profile"]
-        self.assertEqual((p["cps_min"], p["cps_max"], p["button"]), (8, 12, "right"))
-        self.req("/api/settings", {"profile": {"cps_min": 10, "cps_max": 10, "button": "left"}})
+        code, body = self.req("/api/settings", {"preset": {"cps": 12, "button": "right"}})
+        cur = json.loads(body)["config"]["current"]
+        self.assertEqual((cur["cps"], cur["button"]), (12, "right"))
+        self.req("/api/settings", {"preset": {"cps": 10, "button": "left"}})
 
     def test_action_starts_countdown(self):
         code, body = self.req("/api/action", {"do": "toggle"})
         self.assertEqual(code, 200)
-        self.assertEqual(json.loads(body)["engine"]["state"] in ("countdown", "idle"), True)
         time.sleep(0.05)
         _, body = self.req("/api/state")
         self.assertIsNotNone(json.loads(body)["engine"]["countdown"])
@@ -77,18 +77,20 @@ class ServerTests(unittest.TestCase):
         code, body = self.req("/api/action", {"do": "explode"})
         self.assertEqual(code, 400)
 
-    def test_profiles_and_record(self):
-        code, body = self.req("/api/profile", {"op": "select", "name": "Bridging"})
-        self.assertEqual(json.loads(body)["config"]["active"], "Bridging")
-        self.req("/api/profile", {"op": "select", "name": "Standard"})
-        code, body = self.req("/api/record", {"slot": "stop"})
-        self.assertEqual(json.loads(body)["recording"], "stop")
-        code, body = self.req("/api/record", {"slot": "stop", "key": "ctrl+x"})
+    def test_presets_and_record(self):
+        code, body = self.req("/api/preset", {"id": "boost"})
+        self.assertEqual(json.loads(body)["config"]["mode"], "boost")
+        code, body = self.req("/api/preset", {"id": "nope"})
+        self.assertEqual(code, 400)
+        self.req("/api/preset", {"id": "standard"})
+        code, body = self.req("/api/record", {})
+        self.assertTrue(json.loads(body)["recording"])
+        code, body = self.req("/api/record", {"key": "ctrl+x"})
         st = json.loads(body)
-        self.assertEqual(st["config"]["hotkeys"]["stop"], "ctrl+x")
-        self.assertIsNone(st["recording"])
-        code, body = self.req("/api/record", {"slot": "stop", "key": ""})
-        self.assertEqual(json.loads(body)["config"]["hotkeys"]["stop"], "")
+        self.assertEqual(st["config"]["hotkey"], "ctrl+x")
+        self.assertFalse(st["recording"])
+        self.req("/api/record", {})
+        self.req("/api/record", {"key": "f6"})
 
     def test_static_files_and_traversal(self):
         code, body = self.req("/", token=False)
@@ -112,11 +114,11 @@ class ServerTests(unittest.TestCase):
         code, body = self.req("/api/remote", {"enabled": True})
         st = json.loads(body)
         self.assertEqual(code, 200)
-        self.assertTrue(st["config"]["app"]["remote"])
+        self.assertTrue(st["config"]["general"]["remote"])
         self.assertEqual(self.app.server.host, "0.0.0.0")
         time.sleep(0.1)
         code, body = self.req("/api/remote", {"enabled": False})
-        self.assertFalse(json.loads(body)["config"]["app"]["remote"])
+        self.assertFalse(json.loads(body)["config"]["general"]["remote"])
         self.assertEqual(self.app.server.host, "127.0.0.1")
 
 

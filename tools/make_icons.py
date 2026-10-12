@@ -1,81 +1,89 @@
-"""Erzeugt web/icon.svg + PNG-Icons (Grasblock, Pixel-Art) ohne Zusatzmodule.
+"""Erzeugt das App-Icon in allen Groessen.
 
     python tools/make_icons.py
+
+Schreibt web/icon.svg, web/icon-192.png, web/icon-512.png, web/apple-touch-icon.png
+und assets/icon.ico (fuer .exe und Installer). Zum Rendern wird Node.js mit
+Playwright gebraucht (nur fuer Entwickler, nicht zum Benutzen der App).
 """
 
+import json
 import os
 import struct
-import zlib
+import subprocess
+import tempfile
 
-# 16x16 Grasblock. Buchstaben -> Farben.
-PALETTE = {
-    "G": (0x73, 0xC1, 0x4A), "g": (0x5F, 0xA8, 0x3A), "d": (0x4B, 0x8C, 0x2C),
-    "B": (0x7A, 0x52, 0x33), "b": (0x5D, 0x3C, 0x24), "c": (0x8D, 0x60, 0x40),
-    "s": (0x9A, 0x9A, 0x9A),
-}
-PIXELS = [
-    "GGGgggGGgGGggGGG",
-    "gggggGGgGGGgggGg",
-    "ggGGgggGdggggGgg",
-    "gdgggggggggGGgGg",
-    "ggggdgggggggggGg",
-    "ddgdggddgdggdgdd",
-    "BcBdBBbBBBBBdBBB",
-    "BccBbBBbBccBBcBB",
-    "BBBBcBBbBBBBBbBc",
-    "bBBsBccBBBBBcBBc",
-    "BBBBBcBBcBBbBBBB",
-    "BbBBBBBBBbBBBcBB",
-    "BcBcBBBBBBBBcsBB",
-    "BbBBBBBcBbBBBBbB",
-    "BbBBBbBBBBBcBBbB",
-    "BBcBBBBBBbBBBBBB",
-]
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
+ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#2f8cff"/><stop offset="1" stop-color="#0052cc"/></linearGradient></defs>
+<rect x="2" y="2" width="60" height="60" rx="14" fill="url(#bg)"/>
+<g stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".9">
+<path d="M24 8v5"/><path d="M8 22h5"/><path d="M12.7 10.7l3.5 3.5"/></g>
+<path d="M24 22v28l7-6.5 5 10.5 5-2.2-5-10.3h9z" fill="#fff" stroke="#003b99" stroke-width="2.4" stroke-linejoin="round"/>
+</svg>
+"""
 
+ICO_SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
+PNG_FILES = {"icon-192.png": 192, "icon-512.png": 512, "apple-touch-icon.png": 180}
 
-def svg() -> str:
-    rects = []
-    for y, row in enumerate(PIXELS):
-        for x, ch in enumerate(row):
-            r, g, b = PALETTE[ch]
-            rects.append(f'<rect x="{x}" y="{y}" width="1" height="1" fill="#{r:02x}{g:02x}{b:02x}"/>')
-    return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">'
-            + "".join(rects) + "</svg>\n")
+RENDER_JS = r"""
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const fs = require('fs');
+const [svgFile, outDir, sizesJson] = process.argv.slice(2);
+(async () => {
+  const svg = fs.readFileSync(svgFile, 'utf8');
+  const b = await chromium.launch();
+  for (const s of JSON.parse(sizesJson)) {
+    const p = await b.newPage({ viewport: { width: s, height: s } });
+    await p.setContent(`<style>html,body{margin:0;background:transparent}</style>` +
+      `<img src="data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}" width="${s}" height="${s}">`);
+    await p.screenshot({ path: `${outDir}/${s}.png`, omitBackground: true });
+    await p.close();
+  }
+  await b.close();
+})();
+"""
 
 
-def png(size: int, pad: int = 0, bg=(0x14, 0x16, 0x1B)) -> bytes:
-    inner = size - 2 * pad
-    rows = []
-    for py in range(size):
-        row = bytearray([0])
-        for px in range(size):
-            x, y = px - pad, py - pad
-            if 0 <= x < inner and 0 <= y < inner:
-                row += bytes(PALETTE[PIXELS[y * 16 // inner][x * 16 // inner]])
-            else:
-                row += bytes(bg)
-        rows.append(bytes(row))
-    raw = b"".join(rows)
-
-    def chunk(tag, data):
-        c = struct.pack(">I", len(data)) + tag + data
-        return c + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-
-    ihdr = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)
-    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr)
-            + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+def write_ico(path: str, pngs: dict) -> None:
+    sizes = sorted(pngs)
+    header = struct.pack("<HHH", 0, 1, len(sizes))
+    offset = 6 + 16 * len(sizes)
+    entries, blobs = b"", b""
+    for s in sizes:
+        data = pngs[s]
+        dim = 0 if s >= 256 else s
+        entries += struct.pack("<BBBBHHII", dim, dim, 0, 0, 1, 32, len(data), offset)
+        blobs += data
+        offset += len(data)
+    with open(path, "wb") as f:
+        f.write(header + entries + blobs)
 
 
 def main():
-    with open(os.path.join(ROOT, "icon.svg"), "w", encoding="utf-8") as f:
-        f.write(svg())
-    for name, size, pad in (("icon-192.png", 192, 24), ("icon-512.png", 512, 64),
-                            ("apple-touch-icon.png", 180, 22)):
-        with open(os.path.join(ROOT, name), "wb") as f:
-            f.write(png(size, pad))
-    print("Icons geschrieben nach", ROOT)
+    with open(os.path.join(ROOT, "web", "icon.svg"), "w", encoding="utf-8") as f:
+        f.write(ICON_SVG)
+    sizes = sorted(set(ICO_SIZES) | set(PNG_FILES.values()))
+    with tempfile.TemporaryDirectory() as tmp:
+        svg_file = os.path.join(tmp, "icon.svg")
+        js_file = os.path.join(tmp, "render.js")
+        with open(svg_file, "w", encoding="utf-8") as f:
+            f.write(ICON_SVG)
+        with open(js_file, "w", encoding="utf-8") as f:
+            f.write(RENDER_JS)
+        subprocess.run(["node", js_file, svg_file, tmp, json.dumps(sizes)], check=True)
+        pngs = {}
+        for s in sizes:
+            with open(os.path.join(tmp, f"{s}.png"), "rb") as f:
+                pngs[s] = f.read()
+    for name, s in PNG_FILES.items():
+        with open(os.path.join(ROOT, "web", name), "wb") as f:
+            f.write(pngs[s])
+    os.makedirs(os.path.join(ROOT, "assets"), exist_ok=True)
+    write_ico(os.path.join(ROOT, "assets", "icon.ico"), {s: pngs[s] for s in ICO_SIZES})
+    print("Icons geschrieben.")
 
 
 if __name__ == "__main__":

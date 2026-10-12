@@ -10,6 +10,7 @@ Zustaende (fuer die Oberflaeche):
 Modi:
   toggle      – Hotkey/Button schaltet an und aus
   hold_mouse  – an + Maustaste gedrueckt halten = Autoklick (klassisch fuer PvP)
+  boost       – an + jeder echte Klick bekommt Extra-Klicks (x2 / x3)
   hold_key    – klickt, solange der Hotkey gehalten wird
 
 Timing: absolute Zeitplanung (kein Aufsummieren von Verzoegerungen),
@@ -25,9 +26,9 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 
-from . import APP_NAME
+from . import WINDOW_TITLE
 
-MODES = ("toggle", "hold_mouse", "hold_key")
+MODES = ("toggle", "hold_mouse", "boost", "hold_key")
 BUTTONS = ("left", "right", "middle")
 ACTIONS = ("click", "hold")
 
@@ -39,6 +40,7 @@ class ClickSettings:
     action: str = "click"
     cps_min: float = 10.0
     cps_max: float = 10.0
+    boost: int = 2
     hold_ms: float = 0.0
     limit_seconds: float = 0.0
     limit_clicks: int = 0
@@ -71,6 +73,7 @@ class ClickEngine:
         self._run_start: float | None = None
         self._run_clicks = 0
         self._mouse_held: set[str] = set()
+        self._boost_due: deque = deque()   # Zeitpunkte der Boost-Extra-Klicks
         self._key_held = False
         self._holding_button: str | None = None
         self._state = "idle"
@@ -156,6 +159,7 @@ class ClickEngine:
             self._armed = False
             self._countdown_end = None
             self._run_start = None
+            self._boost_due.clear()
             if was_on:
                 self._stop_reason = reason
         self._wake.set()
@@ -163,11 +167,25 @@ class ClickEngine:
             self._emit(["limit" if reason == "limit" else "stop"])
 
     def set_mouse_held(self, button: str, held: bool) -> None:
+        """Echte (physische) Maustaste gedrueckt/losgelassen."""
         with self._lock:
+            was = button in self._mouse_held
             if held:
                 self._mouse_held.add(button)
             else:
                 self._mouse_held.discard(button)
+            c = self.cfg
+            if self._armed and button == c.button and c.mode in ("hold_mouse", "boost"):
+                if held and not was:
+                    # der echte Klick zaehlt in der CPS-Anzeige mit
+                    self.total_clicks += 1
+                    self._run_clicks += 1
+                    self._boost_due.clear()
+                elif was and not held and c.mode == "boost":
+                    t = self._clock()
+                    for i in range(max(1, c.boost) - 1):
+                        t += random.uniform(0.012, 0.024) if i == 0 else random.uniform(0.028, 0.045)
+                        self._boost_due.append(t)
         self._wake.set()
 
     def set_key_held(self, held: bool) -> None:
@@ -268,11 +286,13 @@ class ClickEngine:
             return "idle", ""
         elif c.mode == "hold_mouse" and c.button not in self._mouse_held:
             return "ready", "mouse"
+        elif c.mode == "boost" and not self._boost_due:
+            return "ready", "boost"
         low = self._foreground(now).lower()
         if s.window_lock:
             if not any(m.strip().lower() in low for m in s.window_match if m.strip()):
                 return "paused", "window"
-        elif APP_NAME.lower() in low:
+        elif WINDOW_TITLE.lower() in low:
             return "paused", "self"  # nie ins eigene Fenster klicken
         if s.pause_in_menus and self._captured(now) is False:
             return "paused", "menu"
@@ -353,6 +373,11 @@ class ClickEngine:
                 continue
             self._release_hold()
 
+            if cfg.mode == "boost":
+                self._boost_step(now, cfg)
+                next_t = None
+                continue
+
             if next_t is None:
                 # Bei "Maus halten" hat der echte Klick gerade schon ausgeloest
                 next_t = now + (self._next_interval(cfg) if cfg.mode == "hold_mouse" else 0.0)
@@ -378,6 +403,36 @@ class ClickEngine:
             if next_t < after - 0.010:  # weit hinterher -> kein Nachhol-Burst
                 next_t = after
         self._release_hold()
+
+    def _boost_step(self, now: float, cfg: ClickSettings) -> None:
+        with self._lock:
+            due = self._boost_due[0] if self._boost_due else None
+        if due is None:
+            return
+        if now - due > 0.15:  # veraltet (z. B. nach einer Pause) -> verwerfen
+            with self._lock:
+                if self._boost_due and self._boost_due[0] == due:
+                    self._boost_due.popleft()
+            return
+        if due - now > 0.003:
+            self._wait(due - now - 0.002)
+            return
+        while self._clock() < due:
+            time.sleep(0)
+        with self._lock:
+            if not self._boost_due or self._boost_due[0] != due:
+                return  # inzwischen neu gedrueckt -> Extra-Klick verworfen
+            self._boost_due.popleft()
+            physically_down = cfg.button in self._mouse_held
+        if physically_down:
+            return  # nie in einen echten, gehaltenen Klick hineinklicken
+        try:
+            self.backend.click(cfg.button, 0.0)
+        except Exception:
+            pass
+        with self._lock:
+            self.total_clicks += 1
+            self._run_clicks += 1
 
     def _stats_loop(self) -> None:
         while not self._quit:

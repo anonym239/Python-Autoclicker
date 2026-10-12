@@ -5,6 +5,7 @@ Achtung: sendet echte Maus- und Tastatureingaben (F24 + Klicks).
 """
 
 import ctypes
+import os
 import sys
 import threading
 import time
@@ -25,6 +26,7 @@ def wait_for(cond, timeout=3.0):
 
 
 @unittest.skipUnless(sys.platform == "win32", "nur unter Windows")
+@unittest.skipIf(os.environ.get("CI"), "braucht einen echten Desktop (nicht in CI)")
 class WindowsBackendTests(unittest.TestCase):
     def setUp(self):
         self.be = pw.WindowsBackend()

@@ -111,7 +111,7 @@ class EngineTests(unittest.TestCase):
         self.be.foreground = "Lunar Client 1.8.9"
         self.assertGreater(self.run_for(0.3), 5)
         self.configure(cps_min=50, cps_max=50)  # Sperre aus
-        self.be.foreground = "AutoClicker v6"
+        self.be.foreground = "AutoClicker 6"
         self.assertTrue(wait_for(lambda: self.e.status()["reason"] == "self"))
         time.sleep(0.05)
         self.assertEqual(self.run_for(0.2), 0)
@@ -141,6 +141,42 @@ class EngineTests(unittest.TestCase):
         self.assertTrue(wait_for(lambda: "left" in self.be.down))
         self.be.foreground = "Explorer"
         self.assertTrue(wait_for(lambda: "left" not in self.be.down))
+
+    def test_boost_doubles_real_clicks(self):
+        self.configure(mode="boost", boost=2)
+        self.e.start("hotkey")
+        self.assertTrue(wait_for(lambda: self.e.status()["state"] == "ready"))
+        for _ in range(5):  # 5 echte Klicks
+            self.e.set_mouse_held("left", True)
+            time.sleep(0.02)
+            self.e.set_mouse_held("left", False)
+            time.sleep(0.08)
+        time.sleep(0.1)
+        self.assertEqual(self.be.clicks, 5)            # 5 Extra-Klicks
+        self.assertEqual(self.e.status()["session_clicks"], 10)  # echt + extra
+
+    def test_boost_x3_and_fast_reclick(self):
+        self.configure(mode="boost", boost=3)
+        self.e.start("hotkey")
+        self.e.set_mouse_held("left", True)
+        self.e.set_mouse_held("left", False)
+        time.sleep(0.15)
+        self.assertEqual(self.be.clicks, 2)
+        # Sofort wieder gedrueckt -> ausstehende Extra-Klicks verfallen
+        self.e.set_mouse_held("left", True)
+        self.e.set_mouse_held("left", False)
+        self.e.set_mouse_held("left", True)
+        time.sleep(0.15)
+        self.assertEqual(self.be.clicks, 2)
+        self.e.set_mouse_held("left", False)
+
+    def test_boost_ignores_clicks_when_off(self):
+        self.configure(mode="boost", boost=2)
+        self.e.set_mouse_held("left", True)
+        self.e.set_mouse_held("left", False)
+        time.sleep(0.12)
+        self.assertEqual(self.be.clicks, 0)
+        self.assertEqual(self.e.status()["session_clicks"], 0)
 
     def test_stats_and_reset_keep_lifetime(self):
         self.configure(cps_min=100, cps_max=100, limit_clicks=30)

@@ -1,22 +1,12 @@
 """
-AutoClicker v6 – Block Edition
-==============================
+AutoClicker 6
+=============
 
-Starten:   python autoclicker.py        (oder Starten.bat doppelklicken)
-Demo:      python autoclicker.py --demo (simuliert Klicks, laeuft ueberall)
+Starten:  python autoclicker.py         (oder Starten.bat doppelklicken)
+Demo:     python autoclicker.py --demo  (simuliert Klicks, läuft überall)
 
-Keine Zusatzmodule noetig – nur Python 3.9+ unter Windows 10/11.
-Die Oberflaeche oeffnet sich als eigenes Fenster (Microsoft Edge App-Modus).
-
-Features:
-  - CPS-Bereich mit natuerlicher Variation, Links/Rechts/Mitte
-  - Modi: Umschalten, Maus halten (PvP), Taste halten
-  - Dauerdruecken fuer AFK-Farmen (Angeln, Cobblestone)
-  - Minecraft-Profile, Profil-Wechsel per Hotkey
-  - Nur in Minecraft klicken, Pause im Inventar/Chat
-  - Auto-Stopp (Zeit/Klicks), Start-Countdown, Sounds
-  - Live-CPS-Graph, Statistik, Level
-  - Handy-Fernbedienung per QR-Code (gleiches WLAN)
+Keine Zusatzmodule nötig – Python 3.9+ unter Windows 10/11.
+Fertige Windows-Version mit Installer: siehe Releases auf GitHub.
 """
 
 import os

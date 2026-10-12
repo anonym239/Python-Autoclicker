@@ -1,5 +1,5 @@
 @echo off
-title AutoClicker v6
+title AutoClicker
 cd /d "%~dp0"
 python --version >NUL 2>NUL
 if not errorlevel 1 (
