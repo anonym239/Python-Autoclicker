@@ -1,0 +1,8 @@
+# Persoenliche Einstellungen + Laufzeitdaten
+clicker_settings.json
+clicker_settings.json.tmp
+.window-profile/
+__pycache__/
+*.pyc
+build/
+dist/

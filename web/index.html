@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AutoClicker">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>AutoClicker 6</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!--APP-->
+<div class="app" id="app">
+  <aside class="side">
+    <div class="brand">
+      <img src="icon.svg" alt="" width="28" height="28">
+      <span>AutoClicker</span>
+    </div>
+    <p class="side-label">Modus</p>
+    <nav class="presets" id="presets" aria-label="Modus">
+      <button type="button" class="preset" data-id="standard">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v13l3.2-3.1 2.3 5.3 2.6-1.1-2.3-5.2H18L8 3z"/></svg>
+        <span><b>Standard</b><small>Hotkey an / aus</small></span>
+      </button>
+      <button type="button" class="preset" data-id="pvp">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 3h-5l-8.6 8.6-1.7-1.7-1.4 1.4 2.4 2.4-3.2 3.2 2.8 2.8 3.2-3.2 2.4 2.4 1.4-1.4-1.7-1.7L20 8V3zm-2 4.2-7.9 7.9-1.2-1.2L16.8 6H18v1.2z"/></svg>
+        <span><b>Minecraft PvP</b><small>Maustaste halten</small></span>
+      </button>
+      <button type="button" class="preset" data-id="boost">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+        <span><b>CPS-Boost</b><small>Jeder Klick doppelt</small></span>
+      </button>
+      <button type="button" class="preset" data-id="afk">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm1-13h-2v6l5 3 1-1.7-4-2.4V7z"/></svg>
+        <span><b>AFK-Farm</b><small>Langsam für Farmen</small></span>
+      </button>
+    </nav>
+    <div class="side-foot">
+      <button type="button" class="side-btn" id="help-btn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm-1-4h2v2h-2v-2zm1-10a4 4 0 0 0-4 4h2a2 2 0 1 1 3.4 1.4c-.9.8-2.4 1.6-2.4 3.6h2c0-1.2.8-1.7 1.7-2.5A4 4 0 0 0 12 6z"/></svg>
+        <span>Anleitung</span>
+      </button>
+      <button type="button" class="side-btn" id="settings-btn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M10.3 2h3.4l.5 2.6c.7.2 1.3.6 1.9 1l2.5-.9 1.7 3-2 1.7a7 7 0 0 1 0 2.2l2 1.7-1.7 3-2.5-.9c-.6.4-1.2.8-1.9 1l-.5 2.6h-3.4l-.5-2.6c-.7-.2-1.3-.6-1.9-1l-2.5.9-1.7-3 2-1.7a7 7 0 0 1 0-2.2l-2-1.7 1.7-3 2.5.9c.6-.4 1.2-.8 1.9-1L10.3 2zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/></svg>
+        <span>Einstellungen</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="head">
+      <div class="head-text">
+        <h1 id="title">Standard</h1>
+        <p id="desc">Drück den Hotkey: Der Klicker klickt, bis du ihn wieder drückst.</p>
+      </div>
+      <span class="status" id="status" data-s="idle">Aus</span>
+    </header>
+
+    <section class="card live">
+      <div class="cps"><span id="cps">0</span><small>Klicks pro Sekunde</small></div>
+      <dl class="stats">
+        <div><dt>Klicks</dt><dd id="st-clicks">0</dd></div>
+        <div><dt>Zeit</dt><dd id="st-time">0:00</dd></div>
+        <div><dt>Rekord</dt><dd id="st-best">0</dd></div>
+      </dl>
+    </section>
+
+    <section class="card rows">
+      <div class="row" id="row-speed">
+        <label for="speed">Tempo</label>
+        <div class="row-ctl speed">
+          <input type="range" id="speed" min="1" max="30" step="0.1" aria-label="Klicks pro Sekunde">
+          <span class="num"><input type="number" id="speed-num" min="0.1" max="1000" step="0.1" inputmode="decimal" aria-label="Klicks pro Sekunde"><span>CPS</span></span>
+        </div>
+      </div>
+      <div class="row" id="row-boost" hidden>
+        <span class="row-label">Boost</span>
+        <div class="row-ctl">
+          <div class="seg" id="boost-seg">
+            <button type="button" data-val="2">×2</button>
+            <button type="button" data-val="3">×3</button>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <span class="row-label">Maustaste</span>
+        <div class="row-ctl">
+          <div class="seg" id="button-seg">
+            <button type="button" data-val="left">Links</button>
+            <button type="button" data-val="right">Rechts</button>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <span class="row-label">Hotkey</span>
+        <div class="row-ctl">
+          <button type="button" class="keycap" id="hotkey" title="Klicken, dann neue Taste drücken">F6</button>
+          <span class="muted small" id="hotkey-hint">Zum Ändern anklicken</span>
+        </div>
+      </div>
+    </section>
+
+    <button type="button" class="start" id="start">
+      <span id="start-label">Start</span><kbd id="start-key">F6</kbd>
+    </button>
+    <p class="hint" id="hint">Drück F6 – auch mitten im Spiel.</p>
+  </main>
+</div>
+
+<!-- Einstellungen -->
+<div class="overlay" id="settings" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <header class="sheet-head">
+      <h2 id="settings-title">Einstellungen</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Schließen">✕</button>
+    </header>
+    <div class="sheet-body">
+      <h3>Klicken</h3>
+      <div class="opt">
+        <label for="o-stop">Auto-Stopp nach</label>
+        <span class="num"><input type="number" id="o-stop" min="0" step="1" inputmode="numeric"><span>Sek.</span></span>
+      </div>
+      <div class="opt">
+        <label for="o-delay">Start-Verzögerung</label>
+        <span class="num"><input type="number" id="o-delay" min="0" max="60" step="0.5" inputmode="decimal"><span>Sek.</span></span>
+      </div>
+      <p class="muted small">0 = aus. Start per Knopf wartet immer 3 Sekunden.</p>
+      <div class="opt">
+        <label for="o-vary">Tempo leicht schwanken lassen<small>Wirkt natürlicher (±12 %)</small></label>
+        <input type="checkbox" class="switch" id="o-vary">
+      </div>
+
+      <h3>Spiel &amp; Fenster</h3>
+      <div class="opt">
+        <label for="o-lock">Nur klicken, wenn Minecraft vorne ist<small>Pausiert in anderen Fenstern</small></label>
+        <input type="checkbox" class="switch" id="o-lock">
+      </div>
+      <div class="opt sub" id="o-match-row">
+        <label for="o-match">Fenstername enthält</label>
+        <input type="text" id="o-match" class="text" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="opt pc-only">
+        <label for="o-top">Immer im Vordergrund</label>
+        <input type="checkbox" class="switch" id="o-top">
+      </div>
+      <div class="opt">
+        <label for="o-sound">Töne bei Start und Stopp</label>
+        <input type="checkbox" class="switch" id="o-sound">
+      </div>
+
+      <h3>Aussehen</h3>
+      <div class="seg wide" id="theme-seg">
+        <button type="button" data-val="system">System</button>
+        <button type="button" data-val="light">Hell</button>
+        <button type="button" data-val="dark">Dunkel</button>
+      </div>
+
+      <div class="pc-only">
+        <h3>Handy</h3>
+        <div class="opt">
+          <label for="o-remote">Mit dem Handy steuern<small>Handy und PC im gleichen WLAN</small></label>
+          <input type="checkbox" class="switch" id="o-remote">
+        </div>
+        <div class="remote" id="remote-box" hidden>
+          <img id="qr" alt="QR-Code" width="132" height="132">
+          <div class="remote-text">
+            <p>QR-Code mit dem Handy scannen. Fragt Windows nach der Firewall: „Zulassen“.</p>
+            <code id="remote-url">—</code>
+            <button type="button" class="btn small" id="copy-url">Adresse kopieren</button>
+          </div>
+        </div>
+        <p class="warn" id="remote-err" hidden></p>
+      </div>
+
+      <footer class="sheet-foot">
+        <button type="button" class="link" id="reset-stats">Statistik zurücksetzen</button>
+        <span class="muted small" id="version">Version 6.0.0</span>
+      </footer>
+    </div>
+  </div>
+</div>
+
+<!-- Anleitung -->
+<div class="overlay center" id="tutorial" hidden>
+  <div class="tour" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+    <div class="tour-art" id="tour-art" aria-hidden="true"></div>
+    <h2 id="tour-title">Modus wählen</h2>
+    <p id="tour-text"></p>
+    <div class="tour-dots" id="tour-dots"><i></i><i></i><i></i></div>
+    <div class="tour-btns">
+      <button type="button" class="btn ghost" id="tour-skip">Überspringen</button>
+      <button type="button" class="btn primary" id="tour-next">Weiter</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="overlay center" id="offline" hidden>
+  <div class="tour">
+    <h2>Keine Verbindung</h2>
+    <p id="offline-text">Läuft der AutoClicker auf dem PC noch? Neuer Versuch läuft …</p>
+  </div>
+</div>
+<!--/APP-->
+<script src="app.js"></script>
+</body>
+</html>
