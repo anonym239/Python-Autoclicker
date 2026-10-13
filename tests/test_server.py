@@ -88,6 +88,33 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(st["engine"]["stop_reason"], "hotkey")
         self.assertEqual(st["stop_key"], self.app.config.hotkeys()[0]["key"])
 
+    def test_learn_hotkey(self):
+        self.req("/api/preset", {"id": "standard"})
+        self.req("/api/settings", {"general": {"learn_hotkey_on": True}})
+        self.assertEqual(self.app.matcher._bindings["learn"].key, "f7")
+        # Taste aendern
+        code, body = self.req("/api/hotkeys", {"op": "record", "target": "learn"})
+        self.assertEqual(json.loads(body)["recording"], "learn")
+        code, body = self.req("/api/hotkeys", {"op": "key", "key": "f8"})
+        self.assertEqual(json.loads(body)["config"]["general"]["learn_hotkey"], "f8")
+        # schon belegt
+        self.req("/api/hotkeys", {"op": "record", "target": "learn"})
+        self.req("/api/hotkeys", {"op": "key", "key": self.app.config.hotkeys()[0]["key"]})
+        self.assertEqual(self.app.config.learn_hotkey(), "f8")
+        # im Standard-Modus geht Anlernen nicht
+        self.app._on_hotkey("learn", True)
+        self.assertFalse(self.app.learning)
+        self.assertEqual(self.app.notice["key"], "e_learn_mode")
+        # PvP: an, nochmal druecken = abbrechen
+        self.req("/api/preset", {"id": "pvp"})
+        self.app._on_hotkey("learn", True)
+        self.assertTrue(self.app.learning)
+        self.app._on_hotkey("learn", True)
+        self.assertFalse(self.app.learning)
+        self.req("/api/settings", {"general": {"learn_hotkey_on": False}})
+        self.assertNotIn("learn", self.app.matcher._bindings)
+        self.req("/api/preset", {"id": "standard"})
+
     def test_presets_and_hotkeys(self):
         self.req("/api/action", {"do": "toggle"})
         code, body = self.req("/api/preset", {"id": "boost"})

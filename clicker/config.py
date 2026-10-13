@@ -20,6 +20,8 @@ MAX_HOTKEYS = 8
 MAX_ICON_LEN = 8000  # data:-URL eines 16x16-Bildes
 MAX_PHOTO_LEN = 40000  # Foto des Hotbar-Platzes (nur Anzeige)
 MAX_TOOLS = 12
+MAX_KITS = 10
+MAX_KIT_NAME = 30
 MAX_CPS = 1000.0
 DEFAULT_PORT = 8765
 VARIATION = 0.12  # +-12 % bei "zufaellige Abweichung"
@@ -39,8 +41,10 @@ DEFAULTS = {
     "preset": "standard",
     "presets": {},
     "hotkeys": [{"key": "f6", "action": "toggle"}],
-    # Angelernte Werkzeuge (PvP/Boost): Umriss des Items (256 Bit hex) + Bild
-    "tools": [],
+    # Kits = Saetze angelernter Werkzeuge (PvP/Boost), z. B. eins pro Server/Spielmodus.
+    # Werkzeug = Umriss des Items (256 Bit hex) + Bild
+    "kits": [{"name": "Kit 1", "tools": []}],
+    "kit": 0,                         # gerade benutztes Kit
     "general": {
         "vary": False,
         "auto_stop": 0.0,
@@ -54,6 +58,8 @@ DEFAULTS = {
         "token": "",
         "port": DEFAULT_PORT,
         "tutorial_done": False,
+        "learn_hotkey_on": False,     # Hotkey startet "Werkzeug anlernen" direkt im Spiel
+        "learn_hotkey": "f7",
         "update_skip": "",            # diese Version nicht mehr anzeigen
         "update_snooze_until": 0.0,   # "In 5 Tagen erinnern" (Unix-Zeit)
     },
@@ -139,6 +145,20 @@ def sanitize_tools(items) -> list:
             entry["photo"] = photo
         out.append(entry)
     return out[:MAX_TOOLS]
+
+
+def kit_name(name, fallback: str = "Kit") -> str:
+    text = " ".join(str(name or "").split())[:MAX_KIT_NAME]
+    return text or fallback
+
+
+def sanitize_kits(raw) -> list:
+    out = []
+    for k in raw if isinstance(raw, list) else []:
+        if isinstance(k, dict) and len(out) < MAX_KITS:
+            tools = sanitize_tools(k.get("tools") if isinstance(k.get("tools"), list) else [])
+            out.append({"name": kit_name(k.get("name"), f"Kit {len(out) + 1}"), "tools": tools})
+    return out
 
 
 def sanitize_hotkeys(raw) -> list:
@@ -239,8 +259,13 @@ class Config:
                 d["presets"][pid] = sanitize_preset(presets[pid], d["presets"][pid])
         if raw.get("preset") in PRESETS:
             d["preset"] = raw["preset"]
-        if isinstance(raw.get("tools"), list):
-            d["tools"] = sanitize_tools(raw["tools"])
+        kits = sanitize_kits(raw.get("kits"))
+        if kits:
+            d["kits"] = kits
+            if isinstance(raw.get("kit"), int) and 0 <= raw["kit"] < len(kits):
+                d["kit"] = raw["kit"]
+        elif isinstance(raw.get("tools"), list):  # bis 6.14: nur ein Satz Werkzeuge
+            d["kits"][0]["tools"] = sanitize_tools(raw["tools"])
         if isinstance(raw.get("hotkeys"), list):
             d["hotkeys"] = sanitize_hotkeys(raw["hotkeys"])
         elif "hotkey" in raw:  # Version 6.0.0 hatte nur einen Hotkey
@@ -255,7 +280,7 @@ class Config:
     @staticmethod
     def _apply_general(d: dict, g: dict, allow_private: bool = False) -> None:
         out = d["general"]
-        for key in ("vary", "window_lock", "sound", "always_on_top", "tutorial_done"):
+        for key in ("vary", "window_lock", "sound", "always_on_top", "tutorial_done", "learn_hotkey_on"):
             if key in g:
                 out[key] = _bool(g[key])
         if "auto_stop" in g:
@@ -265,6 +290,8 @@ class Config:
         if "window_match" in g:
             text = ", ".join(x.strip() for x in str(g["window_match"]).split(",") if x.strip())
             out["window_match"] = text[:200] or DEFAULTS["general"]["window_match"]
+        if "learn_hotkey" in g:
+            out["learn_hotkey"] = normalize_hotkey(str(g["learn_hotkey"] or "")) or out["learn_hotkey"]
         if "update_skip" in g:
             out["update_skip"] = str(g["update_skip"] or "")[:20]
         if "update_snooze_until" in g:
@@ -349,6 +376,8 @@ class Config:
             for i, h in enumerate(hks):
                 if h["key"] == key and i != index:
                     return "e_key_taken"
+            if key == self._learn_key():
+                return "e_key_taken"
             if index is None:
                 if len(hks) >= MAX_HOTKEYS:
                     return "e_max_hotkeys"
@@ -357,6 +386,26 @@ class Config:
                 hks[index]["key"] = key
             else:
                 return "e_not_found"
+        return None
+
+    def _learn_key(self) -> str:
+        g = self.data["general"]
+        return g["learn_hotkey"] if g["learn_hotkey_on"] else ""
+
+    def learn_hotkey(self) -> str:
+        """Taste fuer "Werkzeug anlernen" – leer, wenn ausgeschaltet."""
+        with self._lock:
+            return self._learn_key()
+
+    def set_learn_hotkey(self, key: str) -> str | None:
+        key = normalize_hotkey(key)
+        if not key:
+            return "e_key_invalid"
+        with self._lock:
+            if any(h["key"] == key for h in self.data["hotkeys"]):
+                return "e_key_taken"
+            self.data["general"]["learn_hotkey"] = key
+            self.data["general"]["learn_hotkey_on"] = True
         return None
 
     def set_hotkey_action(self, index: int, action: str) -> bool:
@@ -376,15 +425,19 @@ class Config:
         return False
 
     # ─── Werkzeuge ───────────────────────────────────────
+    def _tools(self) -> list:
+        return self.data["kits"][self.data["kit"]]["tools"]
+
     def tools(self) -> list:
+        """Werkzeuge des gerade gewaehlten Kits."""
         with self._lock:
-            return [dict(t) for t in self.data["tools"]]
+            return [dict(t) for t in self._tools()]
 
     def learn_tool(self, mask: str, icon: str, replace: int = -1, photo: str = "") -> None:
         """Werkzeug speichern. replace = Index eines gleichen Werkzeugs (wird ersetzt).
         icon = ausgeschnittenes Item (fuer die Erkennung), photo = Platz 1:1 (zum Anzeigen)."""
         with self._lock:
-            tools = self.data["tools"]
+            tools = self._tools()
             entry = {"mask": mask, "icon": icon}
             if photo:
                 entry["photo"] = photo
@@ -392,29 +445,88 @@ class Config:
                 tools[replace] = entry
             else:
                 tools.append(entry)
-            self.data["tools"] = sanitize_tools(tools)[-MAX_TOOLS:]
+            tools[:] = sanitize_tools(tools)[-MAX_TOOLS:]
 
-    def import_tools(self, items) -> int:
-        """Werkzeuge aus einer Datei uebernehmen (schon vorhandene werden uebersprungen).
-        -> Anzahl neu hinzugekommener."""
+    def import_kit(self, name, items) -> tuple[int, str | None]:
+        """Kit aus einer Datei uebernehmen: ins gewaehlte Kit, wenn es leer ist, sonst als
+        neues Kit. Gibt es dieselben Werkzeuge schon als Kit, wird nur dieses gewaehlt.
+        -> (Anzahl neuer Werkzeuge, Fehlercode oder None)"""
         new = sanitize_tools(items if isinstance(items, list) else [])
+        masks = {t["mask"] for t in new}
         with self._lock:
-            tools = self.data["tools"]
-            have = {t["mask"] for t in tools}
-            added = 0
-            for t in new:
-                if t["mask"] not in have and len(tools) < MAX_TOOLS:
-                    tools.append(t)
-                    have.add(t["mask"])
-                    added += 1
-            return added
+            kits = self.data["kits"]
+            for i, k in enumerate(kits):
+                if masks and {t["mask"] for t in k["tools"]} == masks:
+                    self.data["kit"] = i
+                    return 0, None
+            if self._tools():
+                if len(kits) >= MAX_KITS:
+                    return 0, "e_max_kits"
+                kits.append({"name": "", "tools": []})
+                self.data["kit"] = len(kits) - 1
+            kit = kits[self.data["kit"]]
+            kit["tools"] = new
+            if name or not kit["name"]:
+                kit["name"] = kit_name(name, f"Kit {self.data['kit'] + 1}")
+            return len(new), None
 
     def delete_tool(self, index: int) -> bool:
         with self._lock:
-            if 0 <= index < len(self.data["tools"]):
-                self.data["tools"].pop(index)
+            if 0 <= index < len(self._tools()):
+                self._tools().pop(index)
                 return True
         return False
+
+    # ─── Kits ────────────────────────────────────────────
+    def kits(self) -> list:
+        """-> [{"name", "count"}] fuer die Oberflaeche."""
+        with self._lock:
+            return [{"name": k["name"], "count": len(k["tools"])} for k in self.data["kits"]]
+
+    def kit_index(self) -> int:
+        return self.data["kit"]
+
+    def active_kit_name(self) -> str:
+        with self._lock:
+            return self.data["kits"][self.data["kit"]]["name"]
+
+    def select_kit(self, index: int) -> bool:
+        with self._lock:
+            if 0 <= index < len(self.data["kits"]):
+                self.data["kit"] = index
+                return True
+        return False
+
+    def new_kit(self, name: str = "") -> str | None:
+        """Leeres Kit anlegen und auswaehlen. -> Fehlercode oder None."""
+        with self._lock:
+            kits = self.data["kits"]
+            if len(kits) >= MAX_KITS:
+                return "e_max_kits"
+            kits.append({"name": kit_name(name, f"Kit {len(kits) + 1}"), "tools": []})
+            self.data["kit"] = len(kits) - 1
+        return None
+
+    def rename_kit(self, index: int, name: str) -> bool:
+        with self._lock:
+            if 0 <= index < len(self.data["kits"]):
+                self.data["kits"][index]["name"] = kit_name(name, self.data["kits"][index]["name"])
+                return True
+        return False
+
+    def delete_kit(self, index: int) -> bool:
+        """Kit loeschen. Das letzte Kit bleibt immer da (wird nur geleert)."""
+        with self._lock:
+            kits = self.data["kits"]
+            if not 0 <= index < len(kits):
+                return False
+            if len(kits) == 1:
+                kits[0] = {"name": "Kit 1", "tools": []}
+            else:
+                kits.pop(index)
+            if self.data["kit"] >= len(kits) or self.data["kit"] > index:
+                self.data["kit"] = max(0, self.data["kit"] - 1)
+        return True
 
     def new_token(self) -> str:
         with self._lock:

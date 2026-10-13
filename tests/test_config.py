@@ -163,3 +163,49 @@ class ConfigTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KitTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.c = Config(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_kits(self):
+        c = self.c
+        mask = f"{0b111 << (5 * 16 + 5):064x}"
+        c.learn_tool(mask, "")
+        self.assertEqual(c.kits(), [{"name": "Kit 1", "count": 1}])
+        self.assertIsNone(c.new_kit("  Sky   Wars  "))
+        self.assertEqual(c.kit_index(), 1)
+        self.assertEqual(c.tools(), [])                     # neues Kit ist leer
+        self.assertTrue(c.select_kit(0))
+        self.assertEqual(len(c.tools()), 1)
+        self.assertTrue(c.rename_kit(0, "BedWars"))
+        self.assertEqual([k["name"] for k in c.kits()], ["BedWars", "Sky Wars"])
+        self.assertFalse(c.select_kit(5))
+        c.save()
+        again = Config(self.tmp.name)
+        again.load()
+        self.assertEqual(again.kits(), c.kits())
+        self.assertEqual(again.kit_index(), 0)
+        # loeschen: das gewaehlte bleibt gewaehlt, das letzte Kit bleibt immer da
+        c.select_kit(1)
+        self.assertTrue(c.delete_kit(0))
+        self.assertEqual((c.kit_index(), c.active_kit_name()), (0, "Sky Wars"))
+        self.assertTrue(c.delete_kit(0))
+        self.assertEqual(c.kits(), [{"name": "Kit 1", "count": 0}])
+        for _ in range(20):
+            c.new_kit()
+        self.assertEqual(len(c.kits()), 10)
+        self.assertEqual(c.new_kit(), "e_max_kits")
+
+    def test_old_tools_become_kit(self):
+        mask = f"{0b111 << (5 * 16 + 5):064x}"
+        with open(os.path.join(self.tmp.name, "clicker_settings.json"), "w", encoding="utf-8") as f:
+            json.dump({"general": {}, "tools": [{"mask": mask, "icon": ""}]}, f)
+        c = Config(self.tmp.name)
+        c.load()
+        self.assertEqual(c.kits(), [{"name": "Kit 1", "count": 1}])

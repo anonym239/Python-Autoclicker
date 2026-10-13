@@ -109,6 +109,21 @@
           </div>
         </div>
       </div>
+      <div class="row" id="row-kit" hidden>
+        <span class="row-label" data-i18n="row_kit">Kit</span>
+        <div class="row-ctl">
+          <select class="kit-select" id="kit-select" data-i18n-aria="row_kit" data-i18n-title="kit_help"></select>
+          <button type="button" class="icon-btn small" id="kit-new" data-i18n-title="kit_new" data-i18n-aria="kit_new">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+          </button>
+          <button type="button" class="icon-btn small" id="kit-rename" data-i18n-title="kit_rename" data-i18n-aria="kit_rename">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.2V20h2.8l9.9-9.9-2.8-2.8L4 17.2zm15.7-9.5a1 1 0 0 0 0-1.4l-2-2a1 1 0 0 0-1.4 0l-1.5 1.5 2.8 2.8 2.1-1z"/></svg>
+          </button>
+          <button type="button" class="icon-btn small" id="kit-delete" data-i18n-title="kit_delete" data-i18n-aria="kit_delete">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zM6 9h12l-1 12H7L6 9zm4 2v8h1.5v-8H10zm2.5 0v8H14v-8h-1.5z"/></svg>
+          </button>
+        </div>
+      </div>
       <div class="row" id="row-tools" hidden>
         <span class="row-label" data-i18n="row_tools">Werkzeuge</span>
         <div class="row-ctl">
@@ -185,6 +200,16 @@
         <input type="checkbox" class="switch" id="o-sound">
       </div>
 
+      <h3 data-i18n="tool_learn">Werkzeug anlernen</h3>
+      <div class="opt">
+        <label for="o-learn"><span data-i18n="learn_hk">Hotkey zum Anlernen</span><small data-i18n="learn_hk_sub">Im Spiel drücken, dann einen Block abbauen – nur bei PvP und CPS-Boost</small></label>
+        <input type="checkbox" class="switch" id="o-learn">
+      </div>
+      <div class="opt sub row" id="o-learn-row">
+        <span data-i18n="learn_hk_key">Taste</span>
+        <button type="button" class="keycap" id="o-learn-key" data-i18n-title="hk_change">F7</button>
+      </div>
+
       <h3 data-i18n="sec_look">Aussehen</h3>
       <div class="seg wide" id="theme-seg">
         <button type="button" data-val="system" data-i18n="th_system">System</button>
@@ -215,6 +240,22 @@
     <button type="button" class="btn add" id="hk-add">+ Hotkey hinzufügen</button>
     <p class="muted small dialog-text" data-i18n="hk_tip">Tasten, Kombinationen wie Strg+R und die Maus-Seitentasten gehen.</p>
   </div>
+</div>
+
+<!-- Kit anlegen / umbenennen / loeschen -->
+<div class="overlay center" id="kit-dialog" hidden>
+  <form class="dialog kit-form" role="dialog" aria-modal="true" aria-labelledby="kit-title" id="kit-form">
+    <header class="sheet-head">
+      <h2 id="kit-title">Kit</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Schließen" data-i18n-aria="close">✕</button>
+    </header>
+    <input type="text" class="text" id="kit-name" maxlength="30" autocomplete="off" spellcheck="false" data-i18n-aria="kit_name">
+    <p class="muted dialog-text" id="kit-text"></p>
+    <div class="kit-btns">
+      <button type="button" class="btn ghost" data-close data-i18n="cancel">Abbrechen</button>
+      <button type="submit" class="btn primary" id="kit-ok">OK</button>
+    </div>
+  </form>
 </div>
 
 <!-- Anleitung -->

@@ -23,11 +23,12 @@ from .updater import SNOOZE_SECONDS, Updater
 from .window import open_app_window, run_native_window
 
 RECORD_TIMEOUT = 15.0
-EXPORT_NAME = "AutoClicker-Werkzeuge.json"
+EXPORT_NAME = "AutoClicker-{}.json"
 LEARN_TIMEOUT = 120.0   # so lange wartet "Werkzeug anlernen" auf das Abbauen im Spiel
 TOOL_RECHECK = 0.12     # bei gedrueckter Maustaste so oft nachschauen, was in der Hand ist
 TOOL_MODES = ("hold_mouse", "boost")
 NEW = "new"  # Aufnahme-Ziel fuer einen neuen Hotkey
+LEARN = "learn"  # Aufnahme-Ziel / Hotkey-Platz fuer "Werkzeug anlernen"
 
 
 class App:
@@ -49,7 +50,7 @@ class App:
         self.icon_path = ""                   # assets/icon.ico (scharfes Taskleisten-Icon)
         self.keep_alive = keep_alive          # Fenster schliessen beendet NICHT (Tests/--no-window)
         self.rev = 1                          # Konfig-Revision fuer die Oberflaeche
-        self.recording = None                 # None | NEW | Index des Hotkeys
+        self.recording = None                 # None | NEW | LEARN | Index des Hotkeys
         self.learning = False                 # "Werkzeug anlernen" laeuft
         self.stop_key = ""                    # Hotkey, mit dem zuletzt geschaltet wurde
         self.last_export = ""                 # Pfad der zuletzt exportierten Werkzeug-Datei
@@ -150,7 +151,11 @@ class App:
     def _apply(self, initial: bool = False) -> None:
         cfg = self.config
         self.engine.configure(cfg.click_settings(), cfg.smart_settings())
-        self.matcher.set_bindings({str(i): h["key"] for i, h in enumerate(cfg.hotkeys())})
+        bindings = {str(i): h["key"] for i, h in enumerate(cfg.hotkeys())}
+        learn_key = cfg.learn_hotkey()
+        if learn_key and learn_key not in bindings.values():
+            bindings[LEARN] = learn_key
+        self.matcher.set_bindings(bindings)
         need_mouse = cfg.mode() in TOOL_MODES or self.matcher.wants_mouse_buttons() or self.learning
         self.backend.set_mouse_hook(need_mouse)
         self._tool_templates = [template_from_icon(t["icon"]) for t in cfg.tools()]
@@ -186,6 +191,9 @@ class App:
     def _on_hotkey(self, slot: str, down: bool) -> None:
         if not down:
             return
+        if slot == LEARN:
+            self._on_learn_hotkey()
+            return
         hks = self.config.hotkeys()
         try:
             action = hks[int(slot)]["action"]
@@ -198,6 +206,22 @@ class App:
             self.engine.stop("hotkey")
         else:
             self.engine.toggle("hotkey")
+
+    def _on_learn_hotkey(self) -> None:
+        """Hotkey fuer "Werkzeug anlernen": startet das Anlernen, nochmal druecken bricht ab."""
+        sound = self.config.data["general"]["sound"]
+        if self.learning:
+            self.tools_action({"op": "cancel"})
+            if sound:
+                self.backend.beep("stop")
+            return
+        if self.config.mode() not in TOOL_MODES:
+            self._notify("e_learn_mode")  # nur bei Minecraft PvP und CPS-Boost
+            self.backend.beep("learn_fail")
+            return
+        self.tools_action({"op": "learn"})
+        if sound:
+            self.backend.beep("learn_start")
 
     def _on_mouse(self, button: str, down: bool) -> None:
         if self.learning and button == "left":
@@ -409,11 +433,39 @@ class App:
             return self._export_tools()
         elif op == "import":
             data = body.get("data")
-            items = data.get("tools") if isinstance(data, dict) else data
-            if not isinstance(items, list):
+            if isinstance(data, dict) and isinstance(data.get("kits"), list):
+                kits = data["kits"]  # ganze Einstellungsdatei: alle Kits daraus
+            else:
+                kits = [data if isinstance(data, dict) else {"tools": data}]
+            kits = [k for k in kits if isinstance(k, dict) and isinstance(k.get("tools"), list)]
+            if not kits:
                 return {"error": "e_import"}
-            added = self.config.import_tools(items)
+            added = 0
+            for k in kits:
+                name = k.get("name") if isinstance(k.get("name"), str) else ""
+                n, err = self.config.import_kit(name, k["tools"])
+                if err:
+                    return {"error": err}
+                added += n
             self._notify("n_tools_imported", n=added)
+            self._save_soon()
+        elif op in ("kit_select", "kit_rename", "kit_delete"):
+            index = body.get("index")
+            if not isinstance(index, int):
+                return {"error": "e_not_found"}
+            if op == "kit_select":
+                ok = self.config.select_kit(index)
+            elif op == "kit_rename":
+                ok = self.config.rename_kit(index, str(body.get("name", "")))
+            else:
+                ok = self.config.delete_kit(index)
+            if not ok:
+                return {"error": "e_not_found"}
+            self._save_soon()
+        elif op == "kit_new":
+            err = self.config.new_kit(str(body.get("name", "")))
+            if err:
+                return {"error": err}
             self._save_soon()
         else:
             return {"error": "Unbekannte Aktion"}
@@ -429,8 +481,10 @@ class App:
         folder = os.path.join(home, "Downloads")
         if not os.path.isdir(folder):
             folder = home if os.path.isdir(home) else self.folder
-        path = os.path.join(folder, EXPORT_NAME)
-        data = {"app": APP_NAME, "type": "werkzeuge", "version": VERSION, "tools": tools}
+        name = self.config.active_kit_name()
+        safe = "".join(c if c.isalnum() or c in "-_" else "-" for c in name).strip("-") or "Kit"
+        path = os.path.join(folder, EXPORT_NAME.format(safe))
+        data = {"app": APP_NAME, "type": "kit", "version": VERSION, "name": name, "tools": tools}
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=1)
@@ -450,7 +504,12 @@ class App:
         with self._lock:
             target = self.recording
             self.recording = None
-            if text:
+            if text and target == LEARN:
+                err = self.config.set_learn_hotkey(text)
+                self._notify(err or "n_hotkey_saved")
+                if not err:
+                    self._save_soon()
+            elif text:
                 err = self.config.set_hotkey(None if target == NEW else target, text)
                 if err:
                     self._notify(err)
@@ -494,7 +553,9 @@ class App:
                 "mode": self.config.mode(),
                 "current": self.config.current(),
                 "hotkeys": snap["hotkeys"],
-                "tools": snap["tools"],
+                "tools": self.config.tools(),
+                "kits": self.config.kits(),
+                "kit": self.config.kit_index(),
                 "general": general,
             }
             out["info"] = {
@@ -511,6 +572,9 @@ class App:
         if name == "settings":
             general = body.get("general") or {}
             changed = self.config.update(body)
+            if general.get("learn_hotkey_on") and any(
+                    h["key"] == self.config.learn_hotkey() for h in self.config.hotkeys()):
+                self._notify("e_key_taken")  # Taste ist schon ein anderer Hotkey
             if "general" in changed and "always_on_top" in general:
                 on_top = self.config.data["general"]["always_on_top"]
                 if self.native_window is not None:
@@ -607,7 +671,7 @@ class App:
         if index is not None and not isinstance(index, int):
             return {"error": "Ungültiger Hotkey"}
         if op == "record":  # naechste Taste aufnehmen (index None = neuer Hotkey)
-            self.recording = NEW if index is None else index
+            self.recording = (LEARN if body.get("target") == LEARN else NEW) if index is None else index
             self._record_deadline = time.monotonic() + RECORD_TIMEOUT
             self.matcher.start_recording("record")
         elif op == "cancel":
