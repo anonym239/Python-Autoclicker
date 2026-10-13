@@ -19,7 +19,7 @@ HOTKEY_ACTIONS = ("toggle", "on", "off")  # An/Aus, nur an, nur aus
 MAX_HOTKEYS = 8
 MAX_ICON_LEN = 8000  # data:-URL eines 16x16-Bildes
 MAX_PHOTO_LEN = 40000  # Foto des Hotbar-Platzes (nur Anzeige)
-MAX_TOOLS = 12
+MAX_TOOLS = 30  # pro Kit
 MAX_KITS = 10
 MAX_KIT_NAME = 30
 MAX_CPS = 1000.0
@@ -433,9 +433,10 @@ class Config:
         with self._lock:
             return [dict(t) for t in self._tools()]
 
-    def learn_tool(self, mask: str, icon: str, replace: int = -1, photo: str = "") -> None:
+    def learn_tool(self, mask: str, icon: str, replace: int = -1, photo: str = "") -> bool:
         """Werkzeug speichern. replace = Index eines gleichen Werkzeugs (wird ersetzt).
-        icon = ausgeschnittenes Item (fuer die Erkennung), photo = Platz 1:1 (zum Anzeigen)."""
+        icon = ausgeschnittenes Item (fuer die Erkennung), photo = Platz 1:1 (zum Anzeigen).
+        -> False, wenn das Kit schon voll ist."""
         with self._lock:
             tools = self._tools()
             entry = {"mask": mask, "icon": icon}
@@ -443,9 +444,12 @@ class Config:
                 entry["photo"] = photo
             if 0 <= replace < len(tools):
                 tools[replace] = entry
+            elif len(tools) >= MAX_TOOLS:
+                return False
             else:
                 tools.append(entry)
-            tools[:] = sanitize_tools(tools)[-MAX_TOOLS:]
+            tools[:] = sanitize_tools(tools)
+            return True
 
     def import_kit(self, name, items) -> tuple[int, str | None]:
         """Kit aus einer Datei uebernehmen: ins gewaehlte Kit, wenn es leer ist, sonst als

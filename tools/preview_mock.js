@@ -6,7 +6,7 @@ window.AC_MOCK = (() => {
   const PRESETS = __PRESETS__;
 
   const cfg = JSON.parse(JSON.stringify(CONFIG));
-  let update = { version: "6.17", status: "available", progress: 0, error: "", can_install: true };
+  let update = { version: "6.18", status: "available", progress: 0, error: "", can_install: true };
   let rev = 1, recording = null, recordUntil = 0, notice = null, noticeId = 0;
   let learning = false, slot = 1, learnPress = null;
   cfg.kits = cfg.kits || [{ name: "Kit 1", tools: [] }];
@@ -202,7 +202,7 @@ window.AC_MOCK = (() => {
         if (b.data && typeof b.data.name === "string" && b.data.name.trim()) kit.name = b.data.name.trim().slice(0, 30);
         if (!kit.name) kit.name = `Kit ${cfg.kit + 1}`;
         let n = 0;
-        items.forEach((x) => { if (x && x.icon && T().length < 12) { T().push(x); n++; } });
+        items.forEach((x) => { if (x && x.icon && T().length < 30) { T().push(x); n++; } });
         noticeId++; notice = { id: noticeId, key: "n_tools_imported", vars: { n }, at: Date.now() };
       }
     } else if (name === "update") {

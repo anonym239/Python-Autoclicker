@@ -296,6 +296,10 @@
     btn.textContent = learning ? t("cancel") : t("tool_learn");
   }
   $("#tools-learn").addEventListener("click", () => send("tools", { op: learning ? "cancel" : "learn" }));
+  $("#tools-list").addEventListener("wheel", (e) => {
+    const el = e.currentTarget;
+    if (el.scrollWidth > el.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { el.scrollLeft += e.deltaY; e.preventDefault(); }
+  }, { passive: false });
   // Kits: mehrere Werkzeug-Saetze (z. B. einer pro Server), jederzeit umschaltbar
   $("#kit-select").addEventListener("change", (e) => send("tools", { op: "kit_select", index: +e.target.value }));
   let kitMode = "";

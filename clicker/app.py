@@ -369,7 +369,13 @@ class App:
             self.learning = False
             self.engine.suspend(False)  # Anlernen vorbei -> Klicker laeuft weiter
             self.learn_error = ""
-            self.config.learn_tool(item.mask_hex(), item.icon(), same_tool(item, self._tool_templates), photo)
+            same = same_tool(item, self._tool_templates)
+            if not self.config.learn_tool(item.mask_hex(), item.icon(), same, photo):
+                self._notify("e_max_tools")
+                self.backend.beep("learn_fail")
+                return
+            nr = f"ersetzt Nr. {same + 1}" if same >= 0 else f"neu als Nr. {len(self.config.tools())}"
+            self._log(f"  -> {nr} im Kit {self.config.active_kit_name()!r}")
             self._notify("n_tool_saved")
             self.backend.beep("learn_ok")
             self._apply()

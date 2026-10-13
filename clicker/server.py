@@ -16,7 +16,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-MAX_BODY = 2 * 1024 * 1024  # Werkzeug-Import mit Fotos
+MAX_BODY = 8 * 1024 * 1024  # Kit-Import mit Fotos
 STATIC_TYPES = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
