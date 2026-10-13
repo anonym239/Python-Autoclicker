@@ -157,6 +157,7 @@ WM_QUIT, WM_APP = 0x0012, 0x8000
 WM_SET_MOUSE_HOOK = WM_APP + 1
 WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP = 0x0100, 0x0101, 0x0104, 0x0105
 WM_MOUSEMOVE = 0x0200
+WM_MOUSEWHEEL = 0x020A
 MOUSE_MSGS = {
     0x0201: ("left", True), 0x0202: ("left", False),
     0x0204: ("right", True), 0x0205: ("right", False),
@@ -173,6 +174,8 @@ SOUNDS = {
     "stop": ((660, 60), (440, 110)),
     "limit": ((523, 70), (659, 70), (784, 120)),
     "countdown": ((1000, 40),),
+    "learn_ok": ((784, 70), (1046, 70), (1568, 120)),   # Werkzeug angelernt
+    "learn_fail": ((330, 160),),                         # nicht geklappt – nochmal
 }
 
 
@@ -182,6 +185,26 @@ def _make_inputs(*flags: int):
         arr[i].type = INPUT_MOUSE
         arr[i].u.mi = MOUSEINPUT(0, 0, 0, f, 0, MAGIC)
     return arr
+
+
+def _dpi_aware() -> None:
+    """Prozess DPI-bewusst machen (Per-Monitor v2, sonst die aelteren Varianten)."""
+    try:
+        fn = user32.SetProcessDpiAwarenessContext
+        fn.argtypes, fn.restype = [ctypes.c_void_p], wt.BOOL
+        if fn(ctypes.c_void_p(-4)):
+            return
+    except AttributeError:
+        pass
+    try:
+        ctypes.WinDLL("shcore").SetProcessDpiAwareness(2)
+        return
+    except (OSError, AttributeError):
+        pass
+    try:
+        user32.SetProcessDPIAware()
+    except AttributeError:
+        pass
 
 
 def _blank(data: bytes) -> bool:
@@ -238,7 +261,15 @@ class _HookThread(threading.Thread):
         return user32.CallNextHookEx(None, n_code, w_param, l_param)
 
     def _ms_callback(self, n_code, w_param, l_param):
-        if n_code == 0 and w_param != WM_MOUSEMOVE:
+        if n_code == 0 and w_param == WM_MOUSEWHEEL:
+            try:
+                ms = ctypes.cast(l_param, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+                delta = ctypes.c_short((ms.mouseData >> 16) & 0xFFFF).value
+                if delta:
+                    self._sink.put_nowait(("w", "up" if delta > 0 else "down", True))
+            except Exception:
+                pass
+        elif n_code == 0 and w_param != WM_MOUSEMOVE:
             info = MOUSE_MSGS.get(w_param)
             if info is not None:
                 try:
@@ -292,6 +323,14 @@ class WindowsBackend:
     has_global_input = True
 
     def __init__(self):
+        _dpi_aware()  # echte Pixel – sonst ist die Aufnahme bei 125 %/150 % Skalierung verschoben
+        self.on_input = None  # (art "k"|"w", name, gedrueckt) – fuer den Hotbar-Platz
+        self.capture_info = ""
+        try:
+            from .dxgi_capture import DesktopDuplication
+            self._dxgi = DesktopDuplication()
+        except Exception:
+            self._dxgi = None
         self._both = {b: _make_inputs(*f) for b, f in BUTTON_FLAGS.items()}
         self._down = {b: _make_inputs(f[0]) for b, f in BUTTON_FLAGS.items()}
         self._up = {b: _make_inputs(f[1]) for b, f in BUTTON_FLAGS.items()}
@@ -349,9 +388,20 @@ class WindowsBackend:
             return None
         origin = wt.POINT(0, 0)
         user32.ClientToScreen(hwnd, ctypes.byref(origin))
-        data = self._blit(None, origin.x, origin.y + ch - h, w, h)
+        x, y = origin.x, origin.y + ch - h
+        # 1. DXGI (wie OBS) – klappt auch im Vollbild; 2. GDI; 3. PrintWindow
+        data, self.capture_info = None, ""
+        if self._dxgi is not None:
+            data = self._dxgi.grab(x, y, w, h)
+            self.capture_info = "dxgi" if data else f"dxgi-fehler({self._dxgi.error})"
         if data is None or _blank(data):
-            data = self._print_window(hwnd, origin, w, ch, h) or data
+            data = self._blit(None, x, y, w, h)
+            self.capture_info += " gdi"
+            if data is None or _blank(data):
+                data = self._print_window(hwnd, origin, w, ch, h) or data
+                self.capture_info += " printwindow"
+        if data is not None and _blank(data):
+            self.capture_info += " leer"
         return (w, h, data, ch) if data else None
 
     @staticmethod
@@ -507,7 +557,15 @@ class WindowsBackend:
             if item is None:
                 return
             kind, name, down = item
+            cb = self.on_input
+            if cb is not None and kind in ("k", "w"):
+                try:
+                    cb(kind, name, down)
+                except Exception:
+                    pass
             try:
+                if kind == "w":
+                    continue
                 if kind == "k":
                     matcher.key_event(name, down)
                 else:

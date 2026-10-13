@@ -1,4 +1,4 @@
-**Neu in dieser Version:** Werkzeuge werden jetzt am Item erkannt statt am Hotbar-Platz – egal auf welchem Platz und aus welchem Material. Leere Hand oder Schwert = schnelle Klicks. Anlernen klappt auch im Kreativmodus, und das Icon ist das echte Item-Bild. Werkzeuge aus 6.6 bitte einmal neu anlernen.
+**Neu in dieser Version:** Werkzeug-Erkennung funktioniert jetzt auch im Vollbild (Bildschirmaufnahme wie OBS), bei Windows-Skalierung 125 %/150 % und mit Texture Packs ohne erkennbaren Auswahlrahmen (dann zählt der Platz von Tasten 1–9/Mausrad). Beim Anlernen hörst du im Spiel einen Ton: hoch = gespeichert, tief = nochmal versuchen.
 
 **Download:** `AutoClicker-Setup-….exe` herunterladen und starten.
 Wer AutoClicker schon installiert hat, bekommt das Update auch direkt in der App angezeigt.

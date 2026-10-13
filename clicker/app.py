@@ -15,7 +15,8 @@ from . import APP_NAME, VERSION, WINDOW_TITLE
 from .backend import create_backend
 from .config import PRESET_ORDER, PRESETS, Config, user_data_dir
 from .engine import ClickEngine
-from .hotbar import CAPTURE_GUI_H, MAX_SCALE, Shot, analyze, best_match, item_sample, mask_from_hex, shot_png
+from .hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, best_match, item_sample, locate,
+                     mask_from_hex, shot_png)
 from .keys import HotkeyMatcher
 from .server import WebServer
 from .updater import SNOOZE_SECONDS, Updater
@@ -49,6 +50,7 @@ class App:
         self.rev = 1                          # Konfig-Revision fuer die Oberflaeche
         self.recording = None                 # None | NEW | Index des Hotkeys
         self.learning = False                 # "Werkzeug anlernen" laeuft
+        self.learn_error = ""                 # letzter Fehlschlag beim Anlernen (Textschluessel)
         self._learn_deadline = 0.0
         self._learn_press = False
         self._tool_masks: list = []           # Umrisse der angelernten Werkzeuge
@@ -56,6 +58,8 @@ class App:
         self._tool_kick = threading.Event()
         self.tool_index = -1                  # welches Werkzeug gerade in der Hand ist
         self.hotbar_seen = None               # None = noch nicht geschaut
+        self.slots = SlotTracker()            # Platz aus Tasten/Mausrad (falls der Rahmen nicht erkannt wird)
+        self.backend.on_input = self._on_raw_input
         self._record_deadline = 0.0
         self.notice = None
         self._notice_id = 0
@@ -211,24 +215,40 @@ class App:
     def _tools_matter(self) -> bool:
         return self.config.mode() in TOOL_MODES and bool(self._tool_masks)
 
+    def _on_raw_input(self, kind: str, name: str, down: bool) -> None:
+        """Tasten 1–9 / Mausrad im Spiel: gewaehlten Hotbar-Platz mitschreiben."""
+        if not down or not (self.learning or self._tools_matter()) or not self._game_in_front():
+            return
+        before = self.slots.slot
+        if kind == "k":
+            self.slots.key(name)
+        else:
+            self.slots.wheel(name == "up")
+        if self.slots.slot != before and self._tool_btn_down:
+            self._tool_kick.set()  # waehrend gehalten wird gewechselt -> gleich nachschauen
+
     def _grab_hotbar(self):
         data = self.backend.grab_bottom(CAPTURE_GUI_H * MAX_SCALE)
         if not data:
             return None, None
         w, h, pixels, client_h = data
         shot = Shot(w, h, pixels, client_h)
-        return shot, analyze(shot, w)
+        found = locate(shot, w, self.slots.slot)
+        if found and found["sure"]:
+            self.slots.sync(found["slot"])
+        return shot, found
 
     def _check_tool(self) -> None:
-        """Was ist gerade in der Hand? Nur ein erkanntes Werkzeug bremst den Klicker."""
+        """Was ist gerade in der Hand? Nur ein erkanntes Werkzeug bremst den Klicker –
+        leere Hand, Schwert oder Hotbar nicht zu sehen = normal schnell klicken."""
         index = -1
         try:
             shot, found = self._grab_hotbar() if self._game_in_front() else (None, None)
+            self.hotbar_seen = bool(found and found["sure"])
+            if found:
+                index = best_match(item_sample(shot, found, found["slot"]), self._tool_masks)
         except Exception:
-            shot, found = None, None
-        self.hotbar_seen = found is not None
-        if found:
-            index = best_match(item_sample(shot, found, found["slot"]), self._tool_masks)
+            index = -1
         self.tool_index = index
         self.engine.set_tool(index >= 0 and self._tools_matter())
 
@@ -257,25 +277,58 @@ class App:
         time.sleep(0.05)
         try:
             shot, found = self._grab_hotbar()
-        except Exception:
+        except Exception as e:
             shot, found = None, None
-        if shot is not None:
-            self._save_debug_shot(shot)
+            self._log(f"Aufnahme-Fehler: {e!r}")
         item = item_sample(shot, found, found["slot"]) if found else None
+        self._log_learn(shot, found, item)
         with self._lock:
             if not self.learning:
                 return
-            if item is None:
-                self._notify("e_hotbar")       # Anlernen laeuft weiter – nochmal versuchen
-                return
-            if item.empty:
-                self._notify("e_tool_empty")
+            if item is None or item.empty:
+                # Anlernen laeuft weiter – im Spiel hoert man, dass es nicht geklappt hat
+                self.learn_error = "e_hotbar" if item is None else "e_tool_empty"
+                self._notify(self.learn_error)
+                self.backend.beep("learn_fail")
                 return
             self.learning = False
+            self.learn_error = ""
             self.config.learn_tool(item.mask_hex(), item.icon(), best_match(item, self._tool_masks))
             self._notify("n_tool_saved")
+            self.backend.beep("learn_ok")
             self._apply()
             self._save_soon()
+
+    def _log(self, line: str) -> None:
+        """Kleines Protokoll fuer die Fehlersuche (hotbar-log.txt, nur die letzten Zeilen)."""
+        path = os.path.join(self.folder, "hotbar-log.txt")
+        try:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    lines = f.read().splitlines()[-60:]
+            except OSError:
+                lines = []
+            lines.append(time.strftime("%Y-%m-%d %H:%M:%S ") + line)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+        except OSError:
+            pass
+
+    def _log_learn(self, shot, found, item) -> None:
+        try:
+            title = self.backend.foreground_title()
+        except Exception:
+            title = "?"
+        how = getattr(self.backend, "capture_info", "")
+        if shot is None:
+            self._log(f"Anlernen: keine Aufnahme ({how}) Fenster={title!r}")
+            return
+        self._save_debug_shot(shot)
+        where = (f"Platz {found['slot']} Groesse {found['scale']} "
+                 f"{'Rahmen erkannt' if found['sure'] else 'Rahmen NICHT erkannt (Tasten-Platz)'} "
+                 f"({found['confidence']})") if found else "Hotbar nicht gefunden"
+        what = f"Item {item.size} Pixel" if item else "-"
+        self._log(f"Anlernen: {how} {shot.w}x{shot.client_h} Fenster={title!r} -> {where}, {what}")
 
     def _save_debug_shot(self, shot) -> None:
         """Letzte Aufnahme speichern – falls die Erkennung bei jemandem nicht klappt."""
@@ -290,6 +343,7 @@ class App:
         if op == "learn":
             self.engine.stop("manual")  # beim Anlernen nicht klicken
             self.learning = True
+            self.learn_error = ""
             self._learn_press = False
             self._learn_deadline = time.monotonic() + LEARN_TIMEOUT
         elif op == "cancel":
@@ -335,6 +389,7 @@ class App:
             "engine": self.engine.status(),
             "recording": self.recording,
             "learning": self.learning,
+            "learn_error": self.learn_error,
             "tool_index": self.tool_index,
             "hotbar": self.hotbar_seen,
             "notice": self.notice if self.notice and time.time() - self.notice["at"] < 6 else None,

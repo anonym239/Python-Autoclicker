@@ -108,7 +108,7 @@
   const delayText = (v) => v > 0 ? t("seconds_short", { n: v }) : t("off");
 
   // ─── Zustand ────────────────────────────────────────────
-  let rev = -1, C = null, INFO = null, E = null, recording = null, learning = false, toolIndex = -1;
+  let rev = -1, C = null, INFO = null, E = null, recording = null, learning = false, toolIndex = -1, learnError = "";
   let lastNotice = 0, fails = 0, tourShown = false;
   const edited = new Map();
   const markEdit = (el) => edited.set(el.id, Date.now());
@@ -316,7 +316,7 @@
       hint = main ? t("hint_idle", { key: keyLabel(main.key) }) : t("hint_nokey");
       if (E.stop_reason === "limit") hint = t("hint_limit");
     }
-    $("#hint").textContent = recording !== null ? t("hint_record") : learning ? t("hint_learn") : hint;
+    $("#hint").textContent = recording !== null ? t("hint_record") : learning ? t(learnError || "hint_learn") : hint;
     $("#hint").classList.toggle("attn", recording === null && st === "paused");
   }
 
@@ -351,7 +351,7 @@
     recording = st.recording === undefined ? null : st.recording;
     const ti = st.tool_index === undefined ? -1 : st.tool_index;
     const toolsChanged = !!st.learning !== learning || ti !== toolIndex;
-    learning = !!st.learning; toolIndex = ti;
+    learning = !!st.learning; toolIndex = ti; learnError = st.learn_error || "";
     if (st.config) renderConfig();
     else if (wasRecording !== recording && C) renderHotkeys();
     if (!st.config && toolsChanged) renderTools();

@@ -14,6 +14,8 @@ class DemoBackend:
     has_global_input = False
 
     def __init__(self):
+        self.on_input = None
+        self.capture_info = "demo"
         self.clicks = 0
         self.down: set[str] = set()
         self.foreground = "Minecraft 1.21.4 (Demo)"

@@ -36,7 +36,8 @@ AutoClicker schnell klickt. Deshalb: **„Werkzeug anlernen“** drücken, im Sp
 und einen Block abbauen (geht auch im Kreativmodus). Der AutoClicker erkennt das Item an der Hotbar und zeigt
 sein Bild an. Danach gilt – egal auf welchem Platz und aus welchem Material: Werkzeug in der Hand = Maustaste
 wird normal gehalten, alles andere (Schwert, leere Hand …) = schnelle Klicks. Klappt die Erkennung nicht,
-wird nie gebremst; die letzte Aufnahme liegt dann als `hotbar-aufnahme.png` im Einstellungsordner.
+wird nie gebremst. Beim Anlernen hörst du einen Ton (hoch = gespeichert, tief = nochmal versuchen).
+Zur Fehlersuche liegen `hotbar-aufnahme.png` und `hotbar-log.txt` im Einstellungsordner (`%APPDATA%\\AutoClicker`).
 
 **Sprache:** 24 Sprachen (u. a. Deutsch, English, Español, Français, Русский, Українська, Svenska, Suomi, Nederlands …) – unter **Einstellungen → Sprache**
 („Automatisch“ nimmt die Sprache von Windows).

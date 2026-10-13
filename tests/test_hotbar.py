@@ -8,8 +8,8 @@ import unittest
 from clicker.app import App
 from clicker.backend import DemoBackend
 from clicker.engine import ClickEngine, ClickSettings, SmartSettings
-from clicker.hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, analyze, auto_gui_scale, best_match,
-                            item_sample, mask_from_hex, png_bytes, shot_png)
+from clicker.hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, analyze, auto_gui_scale, best_match,
+                            item_sample, locate, mask_from_hex, png_bytes, shot_png)
 
 WORLD = (90, 130, 200)
 HOTBAR = (55, 55, 55)
@@ -29,7 +29,7 @@ SWORD = ["..............XX", ".............XXX", "............XXX.", "..........
 WOOL = ["XXXXXXXXXXXXXXXX"] * 14 + ["................"] * 2
 
 
-def fake_hotbar(width, height, selected, items=None, scale=None):
+def fake_hotbar(width, height, selected, items=None, scale=None, frame=True):
     """Unteren Bildschirmrand mit einer Minecraft-artigen Hotbar nachbauen (BGRA).
 
     items: {platz: (umriss, farbe)}"""
@@ -51,9 +51,10 @@ def fake_hotbar(width, height, selected, items=None, scale=None):
     hx, hy = gw // 2 - 91, gh - 22
     rect(hx, hy, 182, 22, HOTBAR)
     fx = hx - 1 + (selected - 1) * 20
-    rect(fx, hy - 1, 24, 2, FRAME)          # oben
-    rect(fx, hy - 1, 2, 24, FRAME)          # links
-    rect(fx + 22, hy - 1, 2, 24, FRAME)     # rechts
+    if frame:
+        rect(fx, hy - 1, 24, 2, FRAME)          # oben
+        rect(fx, hy - 1, 2, 24, FRAME)          # links
+        rect(fx + 22, hy - 1, 2, 24, FRAME)     # rechts
     for slot, (shape, color) in (items or {}).items():
         ix = hx + 3 + (slot - 1) * 20
         for y, line in enumerate(shape):
@@ -120,6 +121,38 @@ class HotbarTests(unittest.TestCase):
         self.assertEqual(png_bytes([[(1, 2, 3)]])[:8], b"\x89PNG\r\n\x1a\n")
 
 
+class FallbackTests(unittest.TestCase):
+    def test_tracker(self):
+        t = SlotTracker()
+        t.key("3")
+        t.wheel(up=False)
+        self.assertEqual(t.slot, 4)
+        t.key("1")
+        t.wheel(up=True)
+        self.assertEqual(t.slot, 9)
+        t.key("t")
+        t.key("5")             # im Chat getippt
+        t.key("enter")
+        t.key("e")             # Inventar
+        t.key("2")
+        t.wheel(up=False)
+        self.assertEqual(t.slot, 9)
+        t.key("esc")
+        t.key("2")
+        self.assertEqual(t.slot, 2)
+
+    def test_locate_without_frame_uses_guess(self):
+        shot = shot_of(1280, 720, 6, {6: (PICKAXE, IRON)}, frame=False)
+        self.assertIsNone(analyze(shot, 1280))
+        found = locate(shot, 1280, 6)
+        self.assertFalse(found["sure"])
+        self.assertEqual((found["slot"], found["scale"]), (6, 3))
+        self.assertFalse(item_sample(shot, found, 6).empty)
+        sure = locate(shot_of(1280, 720, 2), 1280, 6)
+        self.assertTrue(sure["sure"])
+        self.assertEqual(sure["slot"], 2)
+
+
 class ToolEngineTests(unittest.TestCase):
     def setUp(self):
         self.backend = DemoBackend()
@@ -182,6 +215,8 @@ class LearnTests(unittest.TestCase):
                 app._on_mouse("left", False)
                 self.assertTrue(self.wait_for(lambda: app.notice and app.notice["key"] == "e_hotbar"))
                 self.assertTrue(app.learning)
+                self.assertEqual(app.state()["learn_error"], "e_hotbar")
+                self.assertIn("learn_fail", screen.beeps)
 
                 # Kreativmodus: kurzer Klick genuegt
                 screen.screen = fake_hotbar(1280, 720, 3, {3: (PICKAXE, DIAMOND), 1: (SWORD, IRON)})
@@ -234,6 +269,21 @@ class LearnTests(unittest.TestCase):
                 self.assertEqual(app.tools_action({"op": "delete", "index": 0}), {"error": "e_not_found"})
             finally:
                 app.shutdown()
+
+    def test_learn_without_frame_by_keys(self):
+        """Texture Pack ohne erkennbaren Auswahlrahmen: Platz kommt von den Tasten."""
+        with tempfile.TemporaryDirectory() as tmp:
+            app = App(tmp, "web", demo=True, keep_alive=True)
+            app.backend.screen = fake_hotbar(1280, 720, 4, {4: (PICKAXE, IRON), 1: (SWORD, IRON)}, frame=False)
+            app.tools_action({"op": "learn"})
+            app._on_raw_input("k", "4", True)
+            app._on_mouse("left", True)
+            app._on_mouse("left", False)
+            self.assertTrue(self.wait_for(lambda: not app.learning))
+            self.assertEqual(len(app.config.tools()), 1)
+            self.assertIn("learn_ok", app.backend.beeps)
+            with open(os.path.join(tmp, "hotbar-log.txt"), encoding="utf-8") as f:
+                self.assertIn("Rahmen NICHT erkannt", f.read())
 
     def test_click_in_own_window_does_not_learn(self):
         with tempfile.TemporaryDirectory() as tmp:
