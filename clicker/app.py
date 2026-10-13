@@ -15,8 +15,8 @@ from . import APP_NAME, VERSION, WINDOW_TITLE
 from .backend import create_backend
 from .config import PRESET_ORDER, PRESETS, Config, user_data_dir
 from .engine import ClickEngine
-from .hotbar import (CAPTURE_GUI_H, MAX_SCALE, SAME_IOU, Shot, SlotTracker, best_match, item_sample, locate,
-                     mask_from_hex, shot_png)
+from .hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, best_match, item_sample, locate,
+                     mask_from_hex, same_tool, shot_png)
 from .keys import HotkeyMatcher
 from .server import WebServer
 from .updater import SNOOZE_SECONDS, Updater
@@ -309,7 +309,7 @@ class App:
                 return
             self.learning = False
             self.learn_error = ""
-            self.config.learn_tool(item.mask_hex(), item.icon(), best_match(item, self._tool_masks, SAME_IOU))
+            self.config.learn_tool(item.mask_hex(), item.icon(), same_tool(item, self._tool_masks))
             self._notify("n_tool_saved")
             self.backend.beep("learn_ok")
             self._apply()

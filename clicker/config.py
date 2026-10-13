@@ -114,6 +114,10 @@ def _migrate_hotkey(text) -> str:
     return normalize_hotkey(KEY_ALIASES.get(t, t))
 
 
+# Aeusserste Pixelreihe des 16x16-Felds – gehoert nie zum Item (seit 6.10)
+_MASK_RIM = sum(1 << (y * 16 + x) for y in range(16) for x in range(16) if x in (0, 15) or y in (0, 15))
+
+
 def sanitize_tools(items) -> list:
     out = []
     for t in items:
@@ -122,6 +126,9 @@ def sanitize_tools(items) -> list:
         mask = t.get("mask")
         if not (isinstance(mask, str) and len(mask) == 64 and all(c in "0123456789abcdef" for c in mask)):
             continue  # z. B. alte Eintraege aus 6.6 (nur Platz-Nummer)
+        bits = int(mask, 16)
+        if bits & _MASK_RIM or bin(bits).count("1") > 150:
+            continue  # alte Eintraege bis 6.9: Rand des Platzes mitgezaehlt -> neu anlernen
         icon = t.get("icon")
         if not (isinstance(icon, str) and icon.startswith("data:image/png;base64,") and len(icon) <= MAX_ICON_LEN):
             icon = ""

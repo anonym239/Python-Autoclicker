@@ -109,6 +109,16 @@ class ConfigTests(unittest.TestCase):
         ui = re.findall(r'\["(\w\w)", "', js.split("window.AC_I18N")[0])
         self.assertEqual(["auto"] + ui, list(LANGUAGES))
 
+    def test_old_tool_masks_are_dropped(self):
+        rim = f"{(1 << 16) - 1:064x}"            # oberste Zeile gesetzt = alter Eintrag bis 6.9
+        good = f"{0b111 << (5 * 16 + 5):064x}"   # nur Pixel innen
+        with open(os.path.join(self.dir, "clicker_settings.json"), "w", encoding="utf-8") as f:
+            json.dump({"general": {}, "tools": [{"mask": rim, "icon": ""}, {"mask": good, "icon": ""},
+                                                {"slot": 3, "icon": ""}]}, f)
+        c = Config(self.dir)
+        c.load()
+        self.assertEqual(c.tools(), [{"mask": good, "icon": ""}])
+
     def test_sanitize(self):
         c = Config(self.dir)
         c.load()
