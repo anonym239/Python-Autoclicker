@@ -10,9 +10,11 @@ angeschaut:
   fuer jede GUI-Groesse.
 - item_sample() schneidet das Item aus dem Platz aus (16x16) und trennt es vom
   Hintergrund -> Umriss (Maske) + Bild mit transparentem Hintergrund.
-- Beim Anlernen wird der Umriss gespeichert. Spaeter zaehlt jedes Item mit
-  gleichem Umriss als Werkzeug – egal auf welchem Platz, egal welches Material
-  (Holz-, Eisen-, Diamant-Spitzhacke haben denselben Umriss).
+- Beim Anlernen wird das Bild des Items gespeichert. Verglichen wird spaeter das
+  Hell-Dunkel-Muster an genau den Pixeln, an denen das angelernte Werkzeug liegt:
+  Holz-, Stein-, Eisen-, Gold-, Diamant- und Netherite-Werkzeuge sind in Minecraft
+  dieselbe Zeichnung in anderen Farben – das Muster bleibt gleich. Der Hintergrund
+  (durchsichtige Hotbar, animierte Texture Packs) spielt dabei keine Rolle.
 """
 
 from __future__ import annotations
@@ -28,8 +30,9 @@ MAX_SCALE = 8
 ITEM = 16                     # Items sind 16x16 GUI-Pixel
 MATCH_ROWS = 12               # untere Zeilen nicht vergleichen (Haltbarkeitsbalken, Anzahl)
 MIN_ITEM_PIXELS = 10          # weniger = leerer Platz
-MATCH_DISTANCE = 0.45         # so nah muss der Umriss sein (= Werkzeug in der Hand), mittlere Pixel
-SAME_IOU = 0.85               # beim Anlernen: so gleich = dasselbe Werkzeug nochmal (ersetzen)
+MATCH_NCC = 0.7               # so aehnlich muss das Hell-Dunkel-Muster sein (= Werkzeug in der Hand)
+SAME_NCC = 0.9                # beim Anlernen: so aehnlich = dasselbe Werkzeug nochmal (ersetzen)
+MIN_TEMPLATE = 12             # so viele Item-Pixel braucht ein angelerntes Werkzeug mindestens
 
 
 class SlotTracker:
@@ -157,9 +160,12 @@ def analyze(shot: Shot, width: int):
     sich deutlich abhebt: zuerst ueber die Oberkante (robust), sonst ueber die
     Helligkeit des Rahmens."""
     best = None
-    for s in range(1, MAX_SCALE + 1):
+    auto = auto_gui_scale(width, shot.client_h)
+    for s in [auto] + [x for x in range(1, MAX_SCALE + 1) if x != auto]:
         if HOTBAR_W * s > width or CAPTURE_GUI_H * s > shot.h:
-            break
+            continue
+        if best is not None and best["scale"] == auto:
+            break  # "Automatisch" passt – das ist fast immer richtig
         x0, y0 = _layout(width, shot.client_h, s)
         for score, need_top, need_gap in ((_top_edge, 60, 40), (_ring_brightness, 130, 35)):
             vals = [score(shot, x0, y0, i, s) for i in range(SLOTS)]
@@ -238,9 +244,73 @@ def item_sample(shot: Shot, found: dict, slot: int) -> Item:
     bg = tuple(sorted(c[k] for c in edge)[len(edge) // 2] for k in range(3))
     spread = sorted(_dist(c, bg) for c in edge)[len(edge) * 2 // 5]
     limit = max(36, 2 * spread + 18)
-    mask = [0 < x < 15 and 0 < y < 15 and _dist(rows[y][x], bg) > limit
-            for y in range(ITEM) for x in range(ITEM)]
-    return Item(rows, mask, bg)
+    dists = [_dist(rows[y][x], bg) if 0 < x < 15 and 0 < y < 15 else 0 for y in range(ITEM) for x in range(ITEM)]
+    mask = [d > limit for d in dists]
+    # Duenne, dunkle Teile (z. B. Stiel auf dunklem Hintergrund): Nachbarn mit etwas
+    # schwaecherem Unterschied gehoeren auch noch dazu
+    for _ in range(3):
+        grow = [not mask[i] and dists[i] > limit * 0.55 and any(
+                    0 <= i % ITEM + dx < ITEM and 0 <= i // ITEM + dy < ITEM
+                    and mask[i + dy * ITEM + dx] for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+                for i in range(ITEM * ITEM)]
+        if not any(grow):
+            break
+        mask = [m or g for m, g in zip(mask, grow)]
+    return Item(rows, _drop_specks(_drop_bars(mask)), bg)
+
+
+def _drop_bars(mask):
+    """Haltbarkeitsbalken (waagrechte Linie ganz unten) gehoert nicht zum Item."""
+    mask = list(mask)
+    for y in (12, 13, 14):
+        run = best = 0
+        for x in range(ITEM):
+            run = run + 1 if mask[y * ITEM + x] else 0
+            best = max(best, run)
+        if best >= 9:
+            for x in range(ITEM):
+                mask[y * ITEM + x] = False
+    return mask
+
+
+def _drop_specks(mask, smallest: int = 3):
+    """Einzelne Stoerpixel (z. B. Ranken eines Texture Packs) entfernen: zusammenhaengende
+    Gruppen mit weniger als `smallest` Pixeln fliegen raus (8er-Nachbarschaft)."""
+    mask = list(mask)
+    seen = set()
+    for start in range(ITEM * ITEM):
+        if not mask[start] or start in seen:
+            continue
+        group, todo = [], [start]
+        seen.add(start)
+        while todo:
+            i = todo.pop()
+            group.append(i)
+            x, y = i % ITEM, i // ITEM
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    nx, ny = x + dx, y + dy
+                    j = ny * ITEM + nx
+                    if 0 <= nx < ITEM and 0 <= ny < ITEM and mask[j] and j not in seen:
+                        seen.add(j)
+                        todo.append(j)
+        if len(group) < smallest:
+            for i in group:
+                mask[i] = False
+    return mask
+
+
+def merge_items(items):
+    """Mehrere Aufnahmen desselben Platzes: nur was in allen gleich aussieht, ist Item.
+    Ein animierter Hintergrund (Texture Pack) faellt so heraus."""
+    first = items[0]
+    if len(items) == 1:
+        return first
+    mask = [all(it.mask[i] for it in items)
+            and all(_dist(it.rows[i // ITEM][i % ITEM], first.rows[i // ITEM][i % ITEM]) < 60 for it in items)
+            for i in range(ITEM * ITEM)]
+    merged = Item(first.rows, _drop_specks(mask), first.bg)
+    return merged if merged.size >= MIN_ITEM_PIXELS else first
 
 
 def mask_from_hex(text: str):
@@ -251,62 +321,98 @@ def mask_from_hex(text: str):
     return [bool(bits >> i & 1) for i in range(ITEM * ITEM)]
 
 
-def _points(mask):
-    """Item-Pixel im Vergleichsbereich (ohne Rand und ohne Haltbarkeitsbalken/Anzahl unten)."""
-    return {(x, y) for y in range(1, MATCH_ROWS) for x in range(1, ITEM - 1) if mask[y * ITEM + x]}
+class Template:
+    """Angelerntes Werkzeug: an welchen Pixeln es liegt und wie hell sie sind."""
+
+    def __init__(self, mask, lum):
+        idx = [y * ITEM + x for y in range(1, MATCH_ROWS) for x in range(1, ITEM - 1) if mask[y * ITEM + x]]
+        self.idx = idx
+        vals = [lum[i] for i in idx]
+        self.mean = sum(vals) / len(vals) if vals else 0.0
+        self.dev = [v - self.mean for v in vals]
+        self.norm = sum(d * d for d in self.dev) ** 0.5
+
+    @property
+    def usable(self) -> bool:
+        return len(self.idx) >= MIN_TEMPLATE and self.norm > 1e-6
+
+    @classmethod
+    def from_item(cls, item: "Item") -> "Template":
+        return cls(item.mask, [_luma(px) for row in item.rows for px in row])
+
+    def score(self, item: "Item") -> float:
+        """Korrelation des Hell-Dunkel-Musters (−1 … 1) an den Pixeln des Werkzeugs."""
+        if not self.usable:
+            return 0.0
+        vals = [_luma(item.rows[i // ITEM][i % ITEM]) for i in self.idx]
+        mean = sum(vals) / len(vals)
+        dv = [v - mean for v in vals]
+        norm = sum(d * d for d in dv) ** 0.5
+        if norm < 1e-6:
+            return 0.0
+        return sum(a * b for a, b in zip(self.dev, dv)) / (self.norm * norm)
 
 
-def similarity(a, b) -> float:
-    """Anteil gleicher Pixel (IoU, 0–1) – nur fuer "dasselbe Werkzeug nochmal angelernt"."""
-    pa, pb = _points(a), _points(b)
-    union = pa | pb
-    return len(pa & pb) / len(union) if union else 0.0
+def template_from_icon(url: str):
+    """Template aus dem gespeicherten Icon (PNG mit Alpha = Item-Pixel) – so muss nach
+    einem Update nichts neu angelernt werden."""
+    rows = png_read_rgba(url)
+    if not rows or len(rows) != ITEM or any(len(r) != ITEM for r in rows):
+        return None
+    mask = [rows[y][x][3] > 127 for y in range(ITEM) for x in range(ITEM)]
+    lum = [_luma(rows[y][x][:3]) for y in range(ITEM) for x in range(ITEM)]
+    t = Template(mask, lum)
+    return t if t.usable else None
 
 
-def distance(a, b) -> float:
-    """Wie weit liegen zwei Umrisse auseinander? (mittlerer Abstand in Pixeln, 0 = gleich)
-
-    Toleriert, dass Spitzhacken aus Holz, Eisen, Diamant oder Netherite (und mit
-    Verzauberungs-Glitzern) je nach Hintergrund an den Raendern leicht anders
-    ausgeschnitten werden – die Form bleibt dieselbe. Schwert, Bloecke, Barren
-    oder Kompass liegen deutlich weiter weg."""
-    pa, pb = _points(a), _points(b)
-    if not pa or not pb:
-        return 99.0
-
-    def gap(p, other):
-        best = 99
-        for q in other:
-            d = max(abs(p[0] - q[0]), abs(p[1] - q[1]))
-            if d < best:
-                best = d
-                if d == 0:
-                    break
-        return best
-
-    return (sum(gap(p, pb) for p in pa) + sum(gap(q, pa) for q in pb)) / (len(pa) + len(pb))
-
-
-def best_match(item: Item, masks) -> int:
+def best_match(item: Item, templates) -> int:
     """Index des passenden angelernten Werkzeugs oder -1."""
-    if item.empty:
-        return -1
-    best, best_i = MATCH_DISTANCE, -1
-    for i, m in enumerate(masks):
-        if m is None:
+    best, best_i = MATCH_NCC, -1
+    for i, t in enumerate(templates):
+        if t is None:
             continue
-        d = distance(item.mask, m)
-        if d <= best:
-            best, best_i = d, i
+        sc = t.score(item)
+        if sc >= best:
+            best, best_i = sc, i
     return best_i
 
 
-def same_tool(item: Item, masks) -> int:
-    """Beim Anlernen: Index eines fast identischen Werkzeugs (wird ersetzt) oder -1."""
-    for i, m in enumerate(masks):
-        if m is not None and similarity(item.mask, m) >= SAME_IOU:
+def same_tool(item: Item, templates) -> int:
+    """Beim Anlernen: Index desselben Werkzeugs (wird ersetzt) oder -1."""
+    for i, t in enumerate(templates):
+        if t is not None and t.score(item) >= SAME_NCC:
             return i
     return -1
+
+
+def png_read_rgba(url: str):
+    """Unsere eigenen kleinen PNGs (RGBA, Filter 0) wieder einlesen."""
+    try:
+        data = base64.b64decode(url.split(",", 1)[1])
+        if data[:8] != b"\x89PNG\r\n\x1a\n":
+            return None
+        pos, idat, w = 8, b"", 0
+        while pos < len(data):
+            n = struct.unpack(">I", data[pos:pos + 4])[0]
+            kind, body = data[pos + 4:pos + 8], data[pos + 8:pos + 8 + n]
+            if kind == b"IHDR":
+                w, h, depth, color = struct.unpack(">IIBB", body[:10])
+                if depth != 8 or color != 6:
+                    return None
+            elif kind == b"IDAT":
+                idat += body
+            pos += 12 + n
+        raw = zlib.decompress(idat)
+        stride = 1 + w * 4
+        rows = []
+        for y in range(h):
+            line = raw[y * stride:(y + 1) * stride]
+            if line[0] != 0:
+                return None
+            rows.append([tuple(line[1 + x * 4:5 + x * 4]) for x in range(w)])
+        return rows
+    except Exception:
+        return None
 
 
 def png_data_url(rows) -> str:

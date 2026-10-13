@@ -15,8 +15,8 @@ from . import APP_NAME, VERSION, WINDOW_TITLE
 from .backend import create_backend
 from .config import PRESET_ORDER, PRESETS, Config, user_data_dir
 from .engine import ClickEngine
-from .hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, best_match, item_sample, locate,
-                     mask_from_hex, same_tool, shot_png)
+from .hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, Template, best_match, item_sample, locate,
+                     merge_items, same_tool, shot_png, template_from_icon)
 from .keys import HotkeyMatcher
 from .server import WebServer
 from .updater import SNOOZE_SECONDS, Updater
@@ -54,7 +54,7 @@ class App:
         self._learn_deadline = 0.0
         self._learn_press = False
         self._learn_skipped = 0
-        self._tool_masks: list = []           # Umrisse der angelernten Werkzeuge
+        self._tool_templates: list = []       # angelernte Werkzeuge (Hell-Dunkel-Muster)
         self._tool_btn_down = False
         self._tool_kick = threading.Event()
         self.tool_index = -1                  # welches Werkzeug gerade in der Hand ist
@@ -149,7 +149,7 @@ class App:
         self.matcher.set_bindings({str(i): h["key"] for i, h in enumerate(cfg.hotkeys())})
         need_mouse = cfg.mode() in TOOL_MODES or self.matcher.wants_mouse_buttons() or self.learning
         self.backend.set_mouse_hook(need_mouse)
-        self._tool_masks = [mask_from_hex(t["mask"]) for t in cfg.tools()]
+        self._tool_templates = [template_from_icon(t["icon"]) for t in cfg.tools()]
         if not self._tools_matter():
             self.tool_index = -1
             self.engine.set_tool(False)
@@ -222,7 +222,7 @@ class App:
             return self._game_in_front()
 
     def _tools_matter(self) -> bool:
-        return self.config.mode() in TOOL_MODES and bool(self._tool_masks)
+        return self.config.mode() in TOOL_MODES and any(self._tool_templates)
 
     def _on_raw_input(self, kind: str, name: str, down: bool) -> None:
         """Tasten 1–9 / Mausrad im Spiel: gewaehlten Hotbar-Platz mitschreiben."""
@@ -255,7 +255,7 @@ class App:
             shot, found = self._grab_hotbar() if self._game_in_front() else (None, None)
             self.hotbar_seen = bool(found and found["sure"])
             if found:
-                index = best_match(item_sample(shot, found, found["slot"]), self._tool_masks)
+                index = best_match(item_sample(shot, found, found["slot"]), self._tool_templates)
         except Exception:
             index = -1
         self.tool_index = index
@@ -297,6 +297,20 @@ class App:
             shot, found = None, None
             self._log(f"Aufnahme-Fehler: {e!r}")
         item = item_sample(shot, found, found["slot"]) if found else None
+        if item is not None and not item.empty:
+            # noch zwei Aufnahmen: was sich bewegt (animierte Hotbar, Welt dahinter), ist kein Item
+            frames = [item]
+            for _ in range(2):
+                time.sleep(0.04)
+                try:
+                    more, _f = self._grab_hotbar()
+                    if more is not None:
+                        frames.append(item_sample(more, found, found["slot"]))
+                except Exception:
+                    break
+            item = merge_items(frames)
+        if item is not None and not item.empty and not Template.from_item(item).usable:
+            item.mask = [False] * len(item.mask)  # zu wenig Muster -> wie leer behandeln
         self._log_learn(shot, found, item)
         with self._lock:
             if not self.learning:
@@ -309,7 +323,7 @@ class App:
                 return
             self.learning = False
             self.learn_error = ""
-            self.config.learn_tool(item.mask_hex(), item.icon(), same_tool(item, self._tool_masks))
+            self.config.learn_tool(item.mask_hex(), item.icon(), same_tool(item, self._tool_templates))
             self._notify("n_tool_saved")
             self.backend.beep("learn_ok")
             self._apply()

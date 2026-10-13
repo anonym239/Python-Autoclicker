@@ -9,8 +9,9 @@ import unittest
 from clicker.app import App
 from clicker.backend import DemoBackend
 from clicker.engine import ClickEngine, ClickSettings, SmartSettings
-from clicker.hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, analyze, auto_gui_scale, best_match,
-                            item_sample, locate, mask_from_hex, png_bytes, same_tool, shot_png)
+from clicker.hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, analyze, auto_gui_scale,
+                            best_match, item_sample, locate, mask_from_hex, merge_items, png_bytes, same_tool,
+                            shot_png, template_from_icon)
 
 WORLD = (90, 130, 200)
 HOTBAR = (55, 55, 55)
@@ -84,7 +85,13 @@ def fake_hotbar(width, height, selected, items=None, scale=None, frame=True, see
         for y, line in enumerate(shape):
             for x, c in enumerate(line):
                 if c != ".":
-                    rect(ix + x, hy + 3 + y, 1, 1, HANDLE if c == "H" else color)
+                    # Schattierung wie bei echten Items: Kanten oben hell, rechts dunkel –
+                    # haengt nur von der Form ab, nicht vom Material
+                    above = y > 0 and shape[y - 1][x] != "."
+                    right = x < 15 and line[x + 1] != "."
+                    f = 1.3 if not above else 0.7 if not right else 1.0
+                    base = HANDLE if c == "H" else color
+                    rect(ix + x, hy + 3 + y, 1, 1, tuple(min(255, int(v * f)) for v in base))
     return width, rows, bytes(px), height
 
 
@@ -119,8 +126,8 @@ class HotbarTests(unittest.TestCase):
         found = analyze(learned, 1280)
         pick = item_sample(learned, found, 2)
         self.assertFalse(pick.empty)
-        masks = [mask_from_hex(pick.mask_hex())]
-        self.assertEqual(masks[0], pick.mask)
+        self.assertEqual(mask_from_hex(pick.mask_hex()), pick.mask)
+        masks = [template_from_icon(pick.icon())]   # so wird es nach dem Speichern geladen
 
         # Andere Hotbar: Gold-Spitzhacke auf Platz 7, Schwert auf 1, Wolle auf 4, Platz 9 leer
         play = shot_of(1920, 1080, 7, {7: (PICKAXE, GOLD), 1: (SWORD, DIAMOND), 4: (WOOL, IRON)})
@@ -149,8 +156,19 @@ def real_hypixel_shot():
     """Echte Aufnahme (Hypixel BedWars, Lunar Client, Texture Pack mit hellen Platz-Raendern):
     1 Holzschwert, 2 Eisen, 3 Gold, 4 Eisen-Spitzhacke (verzaubert, gewaehlt),
     5 Eisen-Axt (verzaubert), 6–8 leer, 9 Kompass."""
+    return _real_shot("hypixel_hotbar.bin")
+
+
+def real_server_shot():
+    """Echte Aufnahme (anderer Server, Texture Pack mit animierten gruenen Ranken hinter der
+    Hotbar): 1 Diamant-Schwert, 2 Diamant-Spitzhacke, 3 Diamant-Axt, 4 Diamant-Schaufel,
+    5 Eimer, 6 Bruchstein, 7 Lachs, 8 Enderperlen, 9 leer (gewaehlt)."""
+    return _real_shot("server_hotbar.bin")
+
+
+def _real_shot(name):
     import zlib
-    with open(os.path.join(os.path.dirname(__file__), "data", "hypixel_hotbar.bin"), "rb") as f:
+    with open(os.path.join(os.path.dirname(__file__), "data", name), "rb") as f:
         blob = f.read()
     w, h, x0, y0, cw, ch = struct.unpack(">6I", blob[:24])
     crop = zlib.decompress(blob[24:])
@@ -170,16 +188,49 @@ class RealScreenshotTests(unittest.TestCase):
         items = {i: item_sample(shot, found, i) for i in range(1, 10)}
         for empty in (6, 7, 8):
             self.assertTrue(items[empty].empty, empty)
-        pickaxe = [items[4].mask]
-        self.assertEqual(best_match(items[4], pickaxe), 0)
-        self.assertEqual(best_match(items[5], pickaxe), 0)   # Axt ist auch ein Werkzeug – darf passen
-        for other in (1, 2, 3, 9):                            # Schwert, Eisen, Gold, Kompass: nie
-            self.assertEqual(best_match(items[other], pickaxe), -1, other)
+        tools = [template_from_icon(items[4].icon()), template_from_icon(items[5].icon())]
+        self.assertEqual(best_match(items[4], tools), 0)
+        self.assertEqual(best_match(items[5], tools), 1)
+        for other in (1, 2, 3, 6, 7, 8, 9):                   # Schwert, Eisen, Gold, leer, Kompass: nie
+            self.assertEqual(best_match(items[other], tools), -1, other)
         # Spitzhacke und Axt sind beim Anlernen zwei verschiedene Eintraege
-        self.assertEqual(same_tool(items[5], pickaxe), -1)
-        self.assertEqual(same_tool(items[4], pickaxe), 0)
+        self.assertEqual(same_tool(items[5], tools[:1]), -1)
+        self.assertEqual(same_tool(items[4], tools[:1]), 0)
         # Icon: nur das Item, durchsichtiger Hintergrund (nicht das ganze Feld)
         self.assertLess(items[4].size, 100)
+
+
+    def test_other_server_other_pack_other_material(self):
+        """Angelernt auf Hypixel (Eisen, verzaubert) -> erkannt auf anderem Server (Diamant,
+        anderes Texture Pack mit animiertem Hintergrund) – und umgekehrt."""
+        hyp, srv = real_hypixel_shot(), real_server_shot()
+        fh, fs = analyze(hyp, 1280), analyze(srv, 1280)
+        self.assertEqual((fs["slot"], fs["scale"]), (9, 3))
+        h = {i: item_sample(hyp, fh, i) for i in range(1, 10)}
+        s = {i: item_sample(srv, fs, i) for i in range(1, 10)}
+        tools = [template_from_icon(h[4].icon()), template_from_icon(h[5].icon())]   # Spitzhacke, Axt
+        self.assertEqual(best_match(s[2], tools), 0)
+        self.assertEqual(best_match(s[3], tools), 1)
+        for other in (1, 4, 5, 6, 7, 8, 9):   # Schwert, Schaufel (nicht angelernt), Eimer, Stein, ...
+            self.assertEqual(best_match(s[other], tools), -1, other)
+        back = [template_from_icon(s[2].icon()), template_from_icon(s[3].icon())]
+        self.assertEqual(best_match(h[4], back), 0)
+        self.assertEqual(best_match(h[5], back), 1)
+        for other in (1, 2, 3, 9):
+            self.assertEqual(best_match(h[other], back), -1, other)
+
+    def test_animated_background_is_removed_when_learning(self):
+        srv = real_server_shot()
+        found = analyze(srv, 1280)
+        axe = item_sample(srv, found, 3)
+        # zweite "Aufnahme": Ranken haben sich bewegt -> andere Hintergrund-Pixel
+        noisy = item_sample(srv, found, 3)
+        noisy.mask = list(noisy.mask)
+        moved = [i for i in range(256) if not axe.mask[i] and 16 < i < 200][::7]
+        for i in moved:
+            noisy.mask[i] = True
+        merged = merge_items([axe, noisy])
+        self.assertLessEqual(merged.size, axe.size)
 
 
 class FallbackTests(unittest.TestCase):
