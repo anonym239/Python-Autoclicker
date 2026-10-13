@@ -6,6 +6,7 @@ window.AC_MOCK = (() => {
   const PRESETS = __PRESETS__;
 
   const cfg = JSON.parse(JSON.stringify(CONFIG));
+  let update = { version: "6.3", status: "available", progress: 0, error: "", can_install: true };
   let rev = 1, recording = null, recordUntil = 0, notice = null, noticeId = 0;
   const now = () => performance.now() / 1000;
   const eng = {
@@ -77,6 +78,7 @@ window.AC_MOCK = (() => {
         best_cps: Math.round(eng.best * 10) / 10,
       },
       recording,
+      update,
       notice: notice && Date.now() - notice.at < 6000 ? notice : null,
     };
     if (String(since) !== String(rev)) {
@@ -137,6 +139,16 @@ window.AC_MOCK = (() => {
       cfg.preset = b.id; eng.owed = 0;
     } else if (name === "hotkeys") {
       hotkeys(b);
+    } else if (name === "update") {
+      if (b.op === "later") { update = null; notify("Erinnerung in 5 Tagen"); }
+      else if (b.op === "skip") update = null;
+      else if (b.op === "install") {
+        update = { ...update, status: "downloading" };
+        const t = setInterval(() => {
+          update.progress = Math.min(1, update.progress + 0.1);
+          if (update.progress >= 1) { clearInterval(t); update = { ...update, status: "installing" }; setTimeout(() => { update = null; notify("Vorschau: hier würde die neue Version starten"); }, 2500); }
+        }, 200);
+      }
     }
     rev++;
     return state(-1);

@@ -48,6 +48,15 @@
   </aside>
 
   <main class="main">
+    <div class="update" id="update" role="status" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4 3.3 3.3V3zM5 18h14v2H5z"/></svg>
+      <span class="update-text" id="update-text">Update verfügbar</span>
+      <span class="update-btns" id="update-btns">
+        <button type="button" class="btn small primary" id="update-install">Jetzt aktualisieren</button>
+        <button type="button" class="btn small ghost" id="update-later">In 5 Tagen erinnern</button>
+        <button type="button" class="icon-btn small" id="update-skip" title="Diese Version nicht mehr anzeigen" aria-label="Ausblenden">✕</button>
+      </span>
+    </div>
     <header class="head">
       <div class="head-text">
         <h1 id="title">Standard</h1>

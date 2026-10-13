@@ -13,6 +13,10 @@ Ein einfacher, schneller Autoclicker für Windows 10/11 (nur PC) – mit Modus f
 
 Ohne Installation: `AutoClicker-…-portable.zip` entpacken und `AutoClicker.exe` starten.
 
+**Updates:** Gibt es eine neue Version, zeigt AutoClicker oben einen Hinweis. „Jetzt aktualisieren“
+lädt und installiert sie selbst, danach startet das Programm neu. Mit „In 5 Tagen erinnern“ oder ✕
+lässt sich der Hinweis wegklicken.
+
 ## So geht's
 
 1. **Links einen Modus wählen.**
@@ -41,6 +45,6 @@ Viele Server verbieten Autoclicker – nutze ihn dort, wo es erlaubt ist.
 - EXE + Installer bauen (Windows): `pip install pyinstaller`, Inno Setup 6 installieren,
   dann `python tools/build_windows.py`
 
-**Neues Release mit .exe:** Auf GitHub unter *Releases → Draft a new release* einen Tag wie
-`v6.2` anlegen und veröffentlichen. Der Workflow *Windows-Build* baut dann automatisch
-Setup und ZIP und hängt beides an das Release.
+**Neues Release:** Versionsnummer in `clicker/__init__.py` erhöhen und nach `main` mergen –
+der Workflow *Windows-Build* baut Setup + ZIP und erstellt das Release automatisch.
+Die installierten Programme zeigen das Update dann von selbst an.

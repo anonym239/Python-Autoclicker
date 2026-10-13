@@ -50,3 +50,5 @@ Name: "{autodesktop}\AutoClicker"; Filename: "{app}\AutoClicker.exe"; Tasks: des
 
 [Run]
 Filename: "{app}\AutoClicker.exe"; Description: "{cm:LaunchProgram,AutoClicker}"; Flags: nowait postinstall skipifsilent
+; Nach einem Update aus der App heraus (leise Installation) automatisch neu starten
+Filename: "{app}\AutoClicker.exe"; Flags: nowait; Check: WizardSilent
