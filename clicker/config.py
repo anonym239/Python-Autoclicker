@@ -8,7 +8,7 @@ import os
 import secrets
 import threading
 
-from .engine import BUTTONS, ClickSettings, SmartSettings
+from .engine import ACTIONS, BUTTONS, ClickSettings, SmartSettings
 from .keys import normalize_hotkey
 
 CONFIG_NAME = "clicker_settings.json"
@@ -86,7 +86,7 @@ def _bool(value, default=False):
 
 def _preset_defaults(pid: str) -> dict:
     p = PRESETS[pid]
-    return {"button": p["button"], "cps": p.get("cps", 10.0), "boost": p.get("boost", 2)}
+    return {"button": p["button"], "cps": p.get("cps", 10.0), "boost": p.get("boost", 2), "action": "click"}
 
 
 def sanitize_preset(raw: dict, base: dict) -> dict:
@@ -98,6 +98,8 @@ def sanitize_preset(raw: dict, base: dict) -> dict:
         p["cps"] = _num(raw["cps"], 0.1, MAX_CPS, p["cps"])
     if "boost" in raw:
         p["boost"] = _num(raw["boost"], 2, 3, p["boost"], integer=True)
+    if raw.get("action") in ACTIONS:
+        p["action"] = raw["action"]
     return p
 
 
@@ -265,7 +267,7 @@ class Config:
             lo = max(0.1, round(cps * (1 - VARIATION), 2)) if g["vary"] else cps
             hi = min(MAX_CPS, round(cps * (1 + VARIATION), 2)) if g["vary"] else cps
             return ClickSettings(button=p["button"], mode=self.mode(), cps_min=lo, cps_max=hi,
-                                 boost=p["boost"], limit_seconds=g["auto_stop"],
+                                 boost=p["boost"], action=p["action"], limit_seconds=g["auto_stop"],
                                  start_delay=g["start_delay"])
 
     def smart_settings(self) -> SmartSettings:

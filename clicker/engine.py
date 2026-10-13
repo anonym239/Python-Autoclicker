@@ -12,6 +12,10 @@ Modi:
   hold_mouse  – an + Maustaste gedrueckt halten = schnelle Klicks
   boost       – an + jeder echte Klick bekommt Extra-Klicks (x2 / x3)
 
+Aktion (nur bei toggle):
+  click – klicken im eingestellten Tempo
+  hold  – Maustaste dauerhaft gedrueckt halten (z. B. Baeume/Steine abbauen)
+
 Timing: absolute Zeitplanung (kein Aufsummieren von Verzoegerungen),
 grob schlafen und nur die letzten ~2 ms genau warten.
 """
@@ -27,6 +31,7 @@ from dataclasses import dataclass, field
 from . import WINDOW_TITLE
 
 MODES = ("toggle", "hold_mouse", "boost")
+ACTIONS = ("click", "hold")
 BUTTONS = ("left", "right", "middle")
 MAX_PENDING_BOOST = 6  # nie mehr Extra-Klicks auf einmal nachholen
 
@@ -38,6 +43,7 @@ class ClickSettings:
     cps_min: float = 10.0
     cps_max: float = 10.0
     boost: int = 2
+    action: str = "click"
     limit_seconds: float = 0.0
     start_delay: float = 0.0
 
@@ -65,6 +71,7 @@ class ClickEngine:
         self._mouse_held: set[str] = set()
         self._boost_owed = 0                 # Extra-Klicks, die noch faellig sind
         self._boost_due: float | None = None  # Zeitpunkt des naechsten Extra-Klicks
+        self._holding: str | None = None   # Taste, die gerade dauerhaft gedrueckt wird
         self._state = "idle"
         self._reason = ""
         self._stop_reason = ""
@@ -91,6 +98,7 @@ class ClickEngine:
         self._wake.set()
         if self._thread.is_alive():
             self._thread.join(1.0)
+        self._release_hold()
         self.backend.set_timer_resolution(False)
 
     def configure(self, cfg: ClickSettings, smart: SmartSettings) -> None:
@@ -187,6 +195,7 @@ class ClickEngine:
                 "reason": self._reason,
                 "stop_reason": self._stop_reason,
                 "armed": self._armed,
+                "holding": self._holding is not None,
                 "countdown": (max(0.0, self._countdown_end - now)
                               if self._countdown_end is not None else None),
                 "run_time": round(run_time, 2),
@@ -257,6 +266,16 @@ class ClickEngine:
             time.sleep(0)
         return True
 
+    def _release_hold(self) -> None:
+        """Gehaltene Taste loslassen (beim Stoppen, Pausieren, Moduswechsel)."""
+        btn = self._holding
+        if btn:
+            self._holding = None
+            try:
+                self.backend.release(btn)
+            except Exception:
+                pass
+
     def _click(self, button: str) -> None:
         try:
             self.backend.click(button)
@@ -294,8 +313,23 @@ class ClickEngine:
 
             if state != "clicking":
                 next_t = None
+                self._release_hold()
                 self._wait(0.02 if state in ("paused", "countdown") else 0.05 if state == "ready" else 0.25)
                 continue
+
+            # Gedrueckt halten (AFK: Baeume, Steine, Angeln ...)
+            if cfg.mode == "toggle" and cfg.action == "hold":
+                next_t = None
+                if self._holding != cfg.button:
+                    self._release_hold()
+                    try:
+                        self.backend.press(cfg.button)
+                        self._holding = cfg.button
+                    except Exception:
+                        pass
+                self._wait(0.05)
+                continue
+            self._release_hold()
 
             if cfg.mode == "boost":
                 next_t = None

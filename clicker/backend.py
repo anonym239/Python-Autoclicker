@@ -15,6 +15,7 @@ class DemoBackend:
 
     def __init__(self):
         self.clicks = 0
+        self.down: set[str] = set()
         self.foreground = "Minecraft 1.21.4 (Demo)"
         self.beeps: list[str] = []
         self.timer_high = False
@@ -23,6 +24,12 @@ class DemoBackend:
     def click(self, button: str) -> None:
         with self._lock:
             self.clicks += 1
+
+    def press(self, button: str) -> None:
+        self.down.add(button)
+
+    def release(self, button: str) -> None:
+        self.down.discard(button)
 
     def foreground_title(self) -> str:
         return self.foreground

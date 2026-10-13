@@ -44,6 +44,11 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(c.current()["boost"], 3)
         self.assertTrue(c.select("afk"))
         self.assertEqual(c.click_settings().cps_max, 1.6)
+        self.assertEqual(c.click_settings().action, "click")
+        c.update({"preset": {"action": "hold"}})
+        self.assertEqual(c.click_settings().action, "hold")
+        c.update({"preset": {"action": "explode"}})
+        self.assertEqual(c.click_settings().action, "hold")
         self.assertFalse(c.select("quatsch"))
 
     def test_variation_and_limits(self):

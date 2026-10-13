@@ -250,6 +250,8 @@ class WindowsBackend:
 
     def __init__(self):
         self._both = {b: _make_inputs(*f) for b, f in BUTTON_FLAGS.items()}
+        self._down = {b: _make_inputs(f[0]) for b, f in BUTTON_FLAGS.items()}
+        self._up = {b: _make_inputs(f[1]) for b, f in BUTTON_FLAGS.items()}
         self._size = ctypes.sizeof(INPUT)
         self._timer_high = False
         self._hooks: _HookThread | None = None
@@ -273,6 +275,13 @@ class WindowsBackend:
     def click(self, button: str) -> None:
         """Druecken + Loslassen in einem SendInput-Aufruf."""
         user32.SendInput(2, self._both[button], self._size)
+
+    def press(self, button: str) -> None:
+        """Taste nur druecken (fuer "Gedrueckt halten")."""
+        user32.SendInput(1, self._down[button], self._size)
+
+    def release(self, button: str) -> None:
+        user32.SendInput(1, self._up[button], self._size)
 
     # ─── Fenster ─────────────────────────────────────────
     def foreground_title(self) -> str:

@@ -47,6 +47,7 @@ window.AC_MOCK = (() => {
     if (eng.armed && cfg.general.auto_stop > 0 && t - eng.runStart >= cfg.general.auto_stop) stop("limit");
     [eng.state, eng.reason] = evaluate();
     if (eng.state !== "clicking") { eng.nextT = null; return; }
+    if (mode() === "toggle" && cur().action === "hold") return;  // haelt nur gedrueckt
     if (mode() === "boost") {
       if (t >= eng.due) { eng.owed--; eng.session++; eng.due = t + 0.028 + Math.random() * 0.017; }
       return;
@@ -73,6 +74,7 @@ window.AC_MOCK = (() => {
       engine: {
         state: eng.state, reason: eng.reason, stop_reason: eng.stopReason, armed: eng.armed,
         countdown: eng.countdownEnd ? Math.max(0, eng.countdownEnd - now()) : null,
+        holding: eng.state === "clicking" && mode() === "toggle" && cur().action === "hold",
         run_time: eng.runStart !== null ? now() - eng.runStart : 0, session_clicks: eng.session,
         lifetime_clicks: eng.lifetime + eng.session, cps: Math.round(eng.cps * 10) / 10,
         best_cps: Math.round(eng.best * 10) / 10,
@@ -132,6 +134,7 @@ window.AC_MOCK = (() => {
         if (b.preset.button) p.button = b.preset.button;
         if ("cps" in b.preset) p.cps = clamp(+b.preset.cps || 0.1, 0.1, 1000);
         if ("boost" in b.preset) p.boost = clamp(Math.round(+b.preset.boost), 2, 3);
+        if (b.preset.action === "click" || b.preset.action === "hold") p.action = b.preset.action;
       }
       if (b.general) Object.assign(cfg.general, b.general);
     } else if (name === "preset") {

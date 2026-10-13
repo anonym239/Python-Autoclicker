@@ -149,6 +149,36 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.be.clicks, 0)
         self.assertEqual(self.e.status()["session_clicks"], 0)
 
+    def test_hold_action_presses_and_releases(self):
+        self.configure(action="hold", button="right")
+        self.e.start()
+        self.assertTrue(wait_for(lambda: "right" in self.be.down))
+        self.assertTrue(self.e.status()["holding"])
+        self.assertEqual(self.be.clicks, 0)  # halten, nicht klicken
+        self.e.stop()
+        self.assertTrue(wait_for(lambda: "right" not in self.be.down))
+        self.assertFalse(self.e.status()["holding"])
+
+    def test_hold_released_when_paused_or_switched(self):
+        smart = SmartSettings(window_lock=True, window_match=["Minecraft"])
+        self.configure(smart=smart, action="hold")
+        self.e.start()
+        self.assertTrue(wait_for(lambda: "left" in self.be.down))
+        self.be.foreground = "Discord"  # anderes Fenster -> sofort loslassen
+        self.assertTrue(wait_for(lambda: "left" not in self.be.down))
+        self.be.foreground = "Minecraft"
+        self.assertTrue(wait_for(lambda: "left" in self.be.down))
+        self.configure(smart=smart, action="click", cps_min=20, cps_max=20)  # zurueck auf Klicken
+        self.assertTrue(wait_for(lambda: "left" not in self.be.down))
+        self.assertTrue(wait_for(lambda: self.be.clicks > 0))
+
+    def test_hold_released_on_shutdown(self):
+        self.configure(action="hold")
+        self.e.start()
+        self.assertTrue(wait_for(lambda: "left" in self.be.down))
+        self.e.shutdown()
+        self.assertNotIn("left", self.be.down)
+
     def test_window_lock_and_self_protection(self):
         smart = SmartSettings(window_lock=True, window_match=["Minecraft", "Lunar Client"])
         self.configure(smart=smart, cps_min=50, cps_max=50)
