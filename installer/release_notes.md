@@ -1,4 +1,4 @@
-**Neu in dieser Version:** AutoClicker läuft jetzt in einem eigenen Programmfenster (im Task-Manager als „AutoClicker“, nicht mehr Chrome/Edge) und spricht 6 Sprachen: Deutsch, English, Español, Français, Türkçe, Polski – umschaltbar unter Einstellungen → Sprache.
+**Neu in dieser Version:** Die Sprachauswahl funktioniert jetzt richtig, das Hauptfenster passt ohne Scrollen (gescrollt wird nur noch in den Einstellungen), und beim Wechsel des Modus stoppt der Klicker automatisch.
 
 **Download:** `AutoClicker-Setup-….exe` herunterladen und starten.
 Wer AutoClicker schon installiert hat, bekommt das Update auch direkt in der App angezeigt.
