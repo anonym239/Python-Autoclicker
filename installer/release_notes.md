@@ -1,4 +1,4 @@
-**Neu in dieser Version:** Werkzeuge exportieren und importieren (JSON) – neben „Werkzeug anlernen“ in Minecraft PvP und CPS-Boost. Der Export landet als `AutoClicker-Werkzeuge.json` im Download-Ordner, inklusive Bildern; beim Import werden doppelte übersprungen. So musst du nach einer Neuinstallation oder auf einem anderen PC nichts neu anlernen.
+**Neu in dieser Version:** **Kits** – mehrere Werkzeug-Sätze (z. B. „Hypixel BedWars“ und „SkyWars“), die du in Minecraft PvP und CPS-Boost oben in der Zeile „Kit“ jederzeit umschalten, neu anlegen, umbenennen und löschen kannst. Export und Import gelten fürs gewählte Kit, ein Import wird zu einem eigenen Kit. Außerdem gibt es in den Einstellungen einen **Hotkey zum Anlernen** (Schalter + Taste, Standard F7): im Spiel drücken, Block abbauen, fertig – ohne zur App zu wechseln.
 
 **Download:** `AutoClicker-Setup-….exe` herunterladen und starten.
 Wer AutoClicker schon installiert hat, bekommt das Update auch direkt in der App angezeigt.

@@ -176,6 +176,8 @@
     $("#o-match-row").hidden = !g.window_lock;
     setChecked($("#o-top"), g.always_on_top);
     setChecked($("#o-sound"), g.sound);
+    setChecked($("#o-learn"), g.learn_hotkey_on);
+    $("#o-learn-row").hidden = !g.learn_hotkey_on;
     pressed("#theme-seg", g.theme);
     $("#version").textContent = t("version", { v: INFO.version }) + (INFO.backend === "demo" ? " · Demo" : "");
 
@@ -236,6 +238,9 @@
       row.append(key, sel, del);
       list.appendChild(row);
     });
+    const lk = $("#o-learn-key");
+    lk.classList.toggle("rec", recording === "learn");
+    lk.textContent = recording === "learn" ? t("hk_press") : keyLabel(C.general.learn_hotkey);
     const add = $("#hk-add");
     add.classList.toggle("rec", recording === "new");
     add.textContent = recording === "new" ? t("hk_add_rec") : t("hk_add");
@@ -247,6 +252,16 @@
     if (!C) return;
     const show = C.mode === "hold_mouse" || C.mode === "boost";
     $("#row-tools").hidden = !show;
+    $("#row-kit").hidden = !show;
+    const kitSel = $("#kit-select");
+    kitSel.textContent = "";
+    C.kits.forEach((k, i) => {
+      const o = document.createElement("option");
+      o.value = String(i);
+      o.textContent = `${k.name} (${k.count})`;
+      o.selected = i === C.kit;
+      kitSel.appendChild(o);
+    });
     const list = $("#tools-list");
     list.textContent = "";
     if (!C.tools.length) {
@@ -281,6 +296,34 @@
     btn.textContent = learning ? t("cancel") : t("tool_learn");
   }
   $("#tools-learn").addEventListener("click", () => send("tools", { op: learning ? "cancel" : "learn" }));
+  // Kits: mehrere Werkzeug-Saetze (z. B. einer pro Server), jederzeit umschaltbar
+  $("#kit-select").addEventListener("change", (e) => send("tools", { op: "kit_select", index: +e.target.value }));
+  let kitMode = "";
+  function openKitDialog(mode) {
+    const kit = C.kits[C.kit];
+    kitMode = mode;
+    $("#kit-title").textContent = t(mode === "new" ? "kit_new" : mode === "rename" ? "kit_rename" : "kit_delete");
+    const name = $("#kit-name");
+    name.hidden = mode === "delete";
+    name.value = mode === "rename" ? kit.name : "";
+    name.placeholder = mode === "new" ? `Kit ${C.kits.length + 1}` : "";
+    $("#kit-text").hidden = mode !== "delete";
+    $("#kit-text").textContent = mode === "delete" ? t("kit_delete_q", { name: kit.name, n: kit.count }) : "";
+    $("#kit-ok").textContent = t(mode === "delete" ? "kit_delete" : "kit_save");
+    $("#kit-dialog").hidden = false;
+    if (!name.hidden) setTimeout(() => name.focus(), 0);
+  }
+  $("#kit-new").addEventListener("click", () => openKitDialog("new"));
+  $("#kit-rename").addEventListener("click", () => openKitDialog("rename"));
+  $("#kit-delete").addEventListener("click", () => openKitDialog("delete"));
+  $("#kit-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = $("#kit-name").value.trim();
+    if (kitMode === "new") send("tools", { op: "kit_new", name });
+    else if (kitMode === "rename") send("tools", { op: "kit_rename", index: C.kit, name });
+    else if (kitMode === "delete") send("tools", { op: "kit_delete", index: C.kit });
+    $("#kit-dialog").hidden = true;
+  });
   // Werkzeuge als JSON-Datei sichern / aus einer Datei laden (auch eine ganze Einstellungsdatei geht)
   $("#tools-export").addEventListener("click", () => send("tools", { op: "export" }));
   $("#tools-import").addEventListener("click", () => $("#tools-file").click());
@@ -423,7 +466,7 @@
     e.target._t = setTimeout(() => sendGeneral({ start_delay: v }), 150);
   });
   $$("#action-seg [data-val]").forEach((b) => b.addEventListener("click", () => sendPreset({ action: b.dataset.val })));
-  [["#o-vary", "vary"], ["#o-lock", "window_lock"], ["#o-top", "always_on_top"], ["#o-sound", "sound"]].forEach(([sel, key]) =>
+  [["#o-vary", "vary"], ["#o-lock", "window_lock"], ["#o-top", "always_on_top"], ["#o-sound", "sound"], ["#o-learn", "learn_hotkey_on"]].forEach(([sel, key]) =>
     $(sel).addEventListener("change", (e) => { markEdit(e.target); sendGeneral({ [key]: e.target.checked }); }));
   $("#o-match").addEventListener("change", (e) => { markEdit(e.target); sendGeneral({ window_match: e.target.value }); });
   $("#o-lang").addEventListener("change", (e) => {
@@ -440,6 +483,8 @@
   // Dialoge
   function closeDialogs() {
     $("#settings").hidden = true;
+    $("#kit-dialog").hidden = true;
+    if (recording === "learn") send("hotkeys", { op: "cancel" });
     if (!$("#hotkeys").hidden) {
       $("#hotkeys").hidden = true;
       if (recording !== null) send("hotkeys", { op: "cancel" });
@@ -447,9 +492,10 @@
   }
   $("#settings-btn").addEventListener("click", () => { $("#settings").hidden = false; });
   $("#hotkeys-btn").addEventListener("click", () => { $("#hotkeys").hidden = false; });
-  $$("#settings, #hotkeys").forEach((ov) => ov.addEventListener("click", (e) => {
+  $$("#settings, #hotkeys, #kit-dialog").forEach((ov) => ov.addEventListener("click", (e) => {
     if (e.target === ov || e.target.closest("[data-close]")) closeDialogs();
   }));
+  $("#o-learn-key").addEventListener("click", () => send("hotkeys", recording === "learn" ? { op: "cancel" } : { op: "record", target: "learn" }));
   $("#hk-add").addEventListener("click", () => send("hotkeys", recording === "new" ? { op: "cancel" } : { op: "record" }));
 
   // ─── Anleitung (3 Schritte) ─────────────────────────────

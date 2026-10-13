@@ -6,12 +6,16 @@ window.AC_MOCK = (() => {
   const PRESETS = __PRESETS__;
 
   const cfg = JSON.parse(JSON.stringify(CONFIG));
-  let update = { version: "6.15", status: "available", progress: 0, error: "", can_install: true };
+  let update = { version: "6.16", status: "available", progress: 0, error: "", can_install: true };
   let rev = 1, recording = null, recordUntil = 0, notice = null, noticeId = 0;
   let learning = false, slot = 1, learnPress = null;
-  cfg.tools = cfg.tools || [];
+  cfg.kits = cfg.kits || [{ name: "Kit 1", tools: [] }];
+  cfg.kit = cfg.kit || 0;
+  // Werkzeuge des gewaehlten Kits
+  const T = () => cfg.kits[cfg.kit].tools;
+  const setT = (list) => { cfg.kits[cfg.kit].tools = list; };
   // Vorschau: auf Platz 3 liegt eine Spitzhacke, sonst ein Schwert (Tasten 1–9 wechseln)
-  const toolIndex = () => (slot === 3 ? cfg.tools.findIndex((x) => x.demo) : -1);
+  const toolIndex = () => (slot === 3 ? T().findIndex((x) => x.demo) : -1);
   const isTool = () => (mode() === "hold_mouse" || mode() === "boost") && toolIndex() >= 0;
   // Vorschau: kleine Pixel-Spitzhacke als "abfotografiertes" Item
   function demoIcon() {
@@ -107,7 +111,8 @@ window.AC_MOCK = (() => {
         preset: cfg.preset,
         presets: Object.keys(PRESETS).map((id) => ({ id, name: PRESETS[id].name, mode: PRESETS[id].mode })),
         mode: mode(), current: { ...cur() }, hotkeys: cfg.hotkeys.map((h) => ({ ...h })),
-        tools: cfg.tools.map((x) => ({ ...x })), general,
+        tools: T().map((x) => ({ ...x })), general,
+        kits: cfg.kits.map((k) => ({ name: k.name, count: k.tools.length })), kit: cfg.kit,
       };
       out.info = { name: "AutoClicker", version: "__VERSION__", backend: "demo", hooks_ok: false };
     }
@@ -117,12 +122,16 @@ window.AC_MOCK = (() => {
   function fail(msg) { const e = new Error(msg); e.code = 400; throw e; }
 
   function hotkeys(b) {
-    if (b.op === "record") { recording = b.index === undefined || b.index === null ? "new" : b.index; recordUntil = now() + 15; }
+    if (b.op === "record") { recording = b.index === undefined || b.index === null ? (b.target === "learn" ? "learn" : "new") : b.index; recordUntil = now() + 15; }
     else if (b.op === "cancel") recording = null;
     else if (b.op === "key") {
       const key = String(b.key || ""), target = recording;
       recording = null;
       if (!key || target === null) return;
+      if (target === "learn") {
+        if (cfg.hotkeys.some((h) => h.key === key)) { notify("e_key_taken"); return; }
+        cfg.general.learn_hotkey = key; cfg.general.learn_hotkey_on = true; notify("n_hotkey_saved"); return;
+      }
       if (cfg.hotkeys.some((h, i) => h.key === key && i !== target)) { notify("e_key_taken"); return; }
       if (target === "new") {
         if (cfg.hotkeys.length >= 8) { notify("e_max_hotkeys"); return; }
@@ -164,18 +173,36 @@ window.AC_MOCK = (() => {
     } else if (name === "tools") {
       if (b.op === "learn") learning = true;  // Klicker bleibt an (pausiert nur)
       else if (b.op === "cancel") learning = false;
-      else if (b.op === "delete") cfg.tools = cfg.tools.filter((x, i) => i !== b.index);
+      else if (b.op === "delete") setT(T().filter((x, i) => i !== b.index));
+      else if (b.op === "kit_select") { if (cfg.kits[b.index]) cfg.kit = b.index; }
+      else if (b.op === "kit_new") {
+        if (cfg.kits.length >= 10) fail("e_max_kits");
+        cfg.kits.push({ name: String(b.name || "").trim().slice(0, 30) || `Kit ${cfg.kits.length + 1}`, tools: [] });
+        cfg.kit = cfg.kits.length - 1;
+      } else if (b.op === "kit_rename") { const n = String(b.name || "").trim().slice(0, 30); if (n && cfg.kits[b.index]) cfg.kits[b.index].name = n; }
+      else if (b.op === "kit_delete") {
+        if (cfg.kits.length === 1) cfg.kits = [{ name: "Kit 1", tools: [] }];
+        else { cfg.kits.splice(b.index, 1); if (cfg.kit >= cfg.kits.length || cfg.kit > b.index) cfg.kit = Math.max(0, cfg.kit - 1); }
+      }
       else if (b.op === "export") {
-        if (!cfg.tools.length) fail("e_no_tools");
-        const blob = new Blob([JSON.stringify({ app: "AutoClicker", type: "werkzeuge", tools: cfg.tools }, null, 1)], { type: "application/json" });
+        if (!T().length) fail("e_no_tools");
+        const kit = cfg.kits[cfg.kit];
+        const blob = new Blob([JSON.stringify({ app: "AutoClicker", type: "kit", name: kit.name, tools: T() }, null, 1)], { type: "application/json" });
         const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob); a.download = "AutoClicker-Werkzeuge.json"; a.click();
+        a.href = URL.createObjectURL(blob); a.download = `AutoClicker-${kit.name.replace(/[^\w-]+/g, "-")}.json`; a.click();
         noticeId++; notice = { id: noticeId, key: "n_tools_exported", vars: { path: "Downloads" }, at: Date.now() };
       } else if (b.op === "import") {
         const items = Array.isArray(b.data) ? b.data : b.data && b.data.tools;
         if (!Array.isArray(items)) fail("e_import");
+        if (T().length) {
+          if (cfg.kits.length >= 10) fail("e_max_kits");
+          cfg.kits.push({ name: "", tools: [] }); cfg.kit = cfg.kits.length - 1;
+        }
+        const kit = cfg.kits[cfg.kit];
+        if (b.data && typeof b.data.name === "string" && b.data.name.trim()) kit.name = b.data.name.trim().slice(0, 30);
+        if (!kit.name) kit.name = `Kit ${cfg.kit + 1}`;
         let n = 0;
-        items.forEach((x) => { if (x && x.icon && cfg.tools.length < 12) { cfg.tools.push(x); n++; } });
+        items.forEach((x) => { if (x && x.icon && T().length < 12) { T().push(x); n++; } });
         noticeId++; notice = { id: noticeId, key: "n_tools_imported", vars: { n }, at: Date.now() };
       }
     } else if (name === "update") {
@@ -219,7 +246,7 @@ window.AC_MOCK = (() => {
     if (learning && learnPress !== null) {
       if (slot !== 3) notify("e_tool_empty");  // Vorschau: nur Platz 3 hat ein Werkzeug
       else {
-        cfg.tools = cfg.tools.filter((x) => !x.demo).concat([{ mask: "", icon: demoIcon(), demo: true }]);
+        setT(T().filter((x) => !x.demo).concat([{ mask: "", icon: demoIcon(), demo: true }]));
         learning = false; rev++; notify("n_tool_saved");
       }
     }

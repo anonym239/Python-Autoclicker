@@ -182,6 +182,7 @@ SOUNDS = {
     "countdown": ((1000, 40),),
     "learn_ok": ((784, 70), (1046, 70), (1568, 120)),   # Werkzeug angelernt
     "learn_fail": ((330, 160),),                         # nicht geklappt – nochmal
+    "learn_start": ((523, 60), (784, 60)),               # Anlernen per Hotkey gestartet
 }
 
 
