@@ -19,6 +19,7 @@ from .keys import vk_to_name
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
 try:
     winmm = ctypes.WinDLL("winmm")
 except OSError:  # sehr selten, nur fuer Timer-Aufloesung
@@ -59,6 +60,13 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
 class MSLLHOOKSTRUCT(ctypes.Structure):
     _fields_ = [("pt", wt.POINT), ("mouseData", wt.DWORD), ("flags", wt.DWORD),
                 ("time", wt.DWORD), ("dwExtraInfo", ULONG_PTR)]
+
+
+class BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [("biSize", wt.DWORD), ("biWidth", wt.LONG), ("biHeight", wt.LONG),
+                ("biPlanes", wt.WORD), ("biBitCount", wt.WORD), ("biCompression", wt.DWORD),
+                ("biSizeImage", wt.DWORD), ("biXPelsPerMeter", wt.LONG), ("biYPelsPerMeter", wt.LONG),
+                ("biClrUsed", wt.DWORD), ("biClrImportant", wt.DWORD)]
 
 
 HOOKPROC = ctypes.WINFUNCTYPE(LRESULT, ctypes.c_int, wt.WPARAM, wt.LPARAM)
@@ -108,6 +116,30 @@ kernel32.CloseHandle.restype = wt.BOOL
 kernel32.GetModuleHandleW.argtypes = [wt.LPCWSTR]
 kernel32.GetModuleHandleW.restype = wt.HMODULE
 kernel32.GetCurrentThreadId.restype = wt.DWORD
+user32.GetClientRect.argtypes = [wt.HWND, ctypes.POINTER(wt.RECT)]
+user32.GetClientRect.restype = wt.BOOL
+user32.ClientToScreen.argtypes = [wt.HWND, ctypes.POINTER(wt.POINT)]
+user32.ClientToScreen.restype = wt.BOOL
+user32.GetDC.argtypes = [wt.HWND]
+user32.GetDC.restype = wt.HDC
+user32.ReleaseDC.argtypes = [wt.HWND, wt.HDC]
+user32.ReleaseDC.restype = ctypes.c_int
+gdi32.CreateCompatibleDC.argtypes = [wt.HDC]
+gdi32.CreateCompatibleDC.restype = wt.HDC
+gdi32.CreateCompatibleBitmap.argtypes = [wt.HDC, ctypes.c_int, ctypes.c_int]
+gdi32.CreateCompatibleBitmap.restype = wt.HBITMAP
+gdi32.SelectObject.argtypes = [wt.HDC, wt.HGDIOBJ]
+gdi32.SelectObject.restype = wt.HGDIOBJ
+gdi32.BitBlt.argtypes = [wt.HDC, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                         wt.HDC, ctypes.c_int, ctypes.c_int, wt.DWORD]
+gdi32.BitBlt.restype = wt.BOOL
+gdi32.GetDIBits.argtypes = [wt.HDC, wt.HBITMAP, wt.UINT, wt.UINT, ctypes.c_void_p,
+                            ctypes.c_void_p, wt.UINT]
+gdi32.GetDIBits.restype = ctypes.c_int
+gdi32.DeleteObject.argtypes = [wt.HGDIOBJ]
+gdi32.DeleteObject.restype = wt.BOOL
+gdi32.DeleteDC.argtypes = [wt.HDC]
+gdi32.DeleteDC.restype = wt.BOOL
 
 # ─── Konstanten ────────────────────────────────────────────
 INPUT_MOUSE = 0
@@ -121,6 +153,7 @@ WM_QUIT, WM_APP = 0x0012, 0x8000
 WM_SET_MOUSE_HOOK = WM_APP + 1
 WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP = 0x0100, 0x0101, 0x0104, 0x0105
 WM_MOUSEMOVE = 0x0200
+WM_MOUSEWHEEL = 0x020A
 MOUSE_MSGS = {
     0x0201: ("left", True), 0x0202: ("left", False),
     0x0204: ("right", True), 0x0205: ("right", False),
@@ -195,7 +228,15 @@ class _HookThread(threading.Thread):
         return user32.CallNextHookEx(None, n_code, w_param, l_param)
 
     def _ms_callback(self, n_code, w_param, l_param):
-        if n_code == 0 and w_param != WM_MOUSEMOVE:
+        if n_code == 0 and w_param == WM_MOUSEWHEEL:
+            try:
+                ms = ctypes.cast(l_param, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+                delta = ctypes.c_short((ms.mouseData >> 16) & 0xFFFF).value
+                if delta:
+                    self._sink.put_nowait(("w", "up" if delta > 0 else "down", True))
+            except Exception:
+                pass
+        elif n_code == 0 and w_param != WM_MOUSEMOVE:
             info = MOUSE_MSGS.get(w_param)
             if info is not None:
                 try:
@@ -249,6 +290,7 @@ class WindowsBackend:
     has_global_input = True
 
     def __init__(self):
+        self.on_input = None  # (kind "k"|"m"|"w", name, down) – roh, fuer den Hotbar-Platz
         self._both = {b: _make_inputs(*f) for b, f in BUTTON_FLAGS.items()}
         self._down = {b: _make_inputs(f[0]) for b, f in BUTTON_FLAGS.items()}
         self._up = {b: _make_inputs(f[1]) for b, f in BUTTON_FLAGS.items()}
@@ -287,6 +329,40 @@ class WindowsBackend:
     def foreground_title(self) -> str:
         hwnd = user32.GetForegroundWindow()
         return _window_text(hwnd) if hwnd else ""
+
+    def grab_bottom(self, rows: int):
+        """Unteren Rand des Vordergrundfensters abfotografieren (fuer die Hotbar).
+
+        -> (breite, hoehe_ausschnitt, BGRA-Bytes von oben, fenster_hoehe) oder None."""
+        hwnd = user32.GetForegroundWindow()
+        if not hwnd:
+            return None
+        rc = wt.RECT()
+        if not user32.GetClientRect(hwnd, ctypes.byref(rc)):
+            return None
+        w, ch = rc.right - rc.left, rc.bottom - rc.top
+        h = min(rows, ch)
+        if w <= 0 or h <= 0:
+            return None
+        pt = wt.POINT(0, ch - h)
+        user32.ClientToScreen(hwnd, ctypes.byref(pt))
+        screen = user32.GetDC(None)
+        mem = gdi32.CreateCompatibleDC(screen)
+        bmp = gdi32.CreateCompatibleBitmap(screen, w, h)
+        old = gdi32.SelectObject(mem, bmp)
+        try:
+            if not gdi32.BitBlt(mem, 0, 0, w, h, screen, pt.x, pt.y, 0x00CC0020):  # SRCCOPY
+                return None
+            info = BITMAPINFOHEADER(ctypes.sizeof(BITMAPINFOHEADER), w, -h, 1, 32, 0, 0, 0, 0, 0, 0)
+            buf = ctypes.create_string_buffer(w * h * 4)
+            if gdi32.GetDIBits(mem, bmp, 0, h, buf, ctypes.byref(info), 0) != h:  # DIB_RGB_COLORS
+                return None
+            return w, h, buf.raw, ch
+        finally:
+            gdi32.SelectObject(mem, old)
+            gdi32.DeleteObject(bmp)
+            gdi32.DeleteDC(mem)
+            user32.ReleaseDC(None, screen)
 
     def _find_windows(self, title_part: str):
         found = []
@@ -387,7 +463,15 @@ class WindowsBackend:
             if item is None:
                 return
             kind, name, down = item
+            cb = self.on_input
+            if cb:
+                try:
+                    cb(kind, name, down)
+                except Exception:
+                    pass
             try:
+                if kind == "w":
+                    continue
                 if kind == "k":
                     matcher.key_event(name, down)
                 else:

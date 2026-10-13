@@ -15,12 +15,16 @@ from . import APP_NAME, VERSION, WINDOW_TITLE
 from .backend import create_backend
 from .config import PRESET_ORDER, PRESETS, Config, user_data_dir
 from .engine import ClickEngine
+from .hotbar import CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, analyze, item_pixels, looks_empty, png_data_url
 from .keys import HotkeyMatcher
 from .server import WebServer
 from .updater import SNOOZE_SECONDS, Updater
 from .window import open_app_window, run_native_window
 
 RECORD_TIMEOUT = 15.0
+LEARN_TIMEOUT = 120.0   # so lange wartet "Werkzeug anlernen" auf das Abbauen im Spiel
+LEARN_HOLD = 0.35       # so lange muss die Maustaste gehalten werden (= Block abbauen)
+TOOL_MODES = ("hold_mouse", "boost")
 NEW = "new"  # Aufnahme-Ziel fuer einen neuen Hotkey
 
 
@@ -44,6 +48,12 @@ class App:
         self.keep_alive = keep_alive          # Fenster schliessen beendet NICHT (Tests/--no-window)
         self.rev = 1                          # Konfig-Revision fuer die Oberflaeche
         self.recording = None                 # None | NEW | Index des Hotkeys
+        self.slots = SlotTracker()            # gewaehlter Hotbar-Platz im Spiel
+        self.learning = False                 # "Werkzeug anlernen" laeuft
+        self._learn_deadline = 0.0
+        self._learn_press: float | None = None
+        self._grab_busy = False
+        self.backend.on_input = self._on_raw_input
         self._record_deadline = 0.0
         self.notice = None
         self._notice_id = 0
@@ -94,6 +104,9 @@ class App:
         saved_clicks = self.engine.lifetime_clicks()
         while not self.quit_event.wait(0.5):
             now = time.monotonic()
+            if self.learning and now > self._learn_deadline:
+                self.learning = False
+                self._apply()
             if self.recording is not None and now > self._record_deadline:
                 self.matcher.cancel_recording()
                 self.recording = None
@@ -126,8 +139,9 @@ class App:
         cfg = self.config
         self.engine.configure(cfg.click_settings(), cfg.smart_settings())
         self.matcher.set_bindings({str(i): h["key"] for i, h in enumerate(cfg.hotkeys())})
-        need_mouse = cfg.mode() in ("hold_mouse", "boost") or self.matcher.wants_mouse_buttons()
+        need_mouse = cfg.mode() in TOOL_MODES or self.matcher.wants_mouse_buttons() or self.learning
         self.backend.set_mouse_hook(need_mouse)
+        self._update_tool()
         self.rev += 1
         if initial:
             threading.Thread(target=self._window_setup, daemon=True).start()
@@ -170,7 +184,115 @@ class App:
             self.engine.toggle()
 
     def _on_mouse(self, button: str, down: bool) -> None:
+        if self.learning and button == "left":
+            self._learn_mouse(down)
+        elif down and button == self.config.current()["button"] and self._tools_matter():
+            self._update_tool()      # sofort nach dem gemerkten Platz entscheiden ...
+            self._resync_slot()      # ... und auf dem Bildschirm nachpruefen
         self.engine.set_mouse_held(button, down)
+
+    # ─── Werkzeuge (Hotbar) ─────────────────────────────
+    def _game_in_front(self) -> bool:
+        """Irgendein anderes Fenster als der AutoClicker selbst (das Spiel)."""
+        try:
+            title = (self.backend.foreground_title() or "").lower()
+        except Exception:
+            return False
+        return bool(title) and WINDOW_TITLE.lower() not in title
+
+    def _tools_matter(self) -> bool:
+        return self.config.mode() in TOOL_MODES and bool(self.config.tool_slots())
+
+    def _update_tool(self) -> None:
+        self.engine.set_tool(self._tools_matter() and self.slots.slot in self.config.tool_slots())
+
+    def _on_raw_input(self, kind: str, name: str, down: bool) -> None:
+        """Rohe Tasten/Mausrad: gewaehlten Hotbar-Platz mitverfolgen."""
+        if not down or kind not in ("k", "w") or not (self._tools_matter() or self.learning):
+            return
+        if not self._game_in_front():
+            return
+        changed = self.slots.key(name) if kind == "k" else self.slots.wheel(name == "up")
+        if changed:
+            self._update_tool()
+
+    def _grab_hotbar(self):
+        data = self.backend.grab_bottom(CAPTURE_GUI_H * MAX_SCALE)
+        if not data:
+            return None, None
+        w, h, pixels, client_h = data
+        shot = Shot(w, h, pixels, client_h)
+        return shot, analyze(shot, w)
+
+    def _resync_slot(self) -> None:
+        """Hotbar-Platz auf dem Bildschirm erkennen (im Hintergrund, max. einer gleichzeitig)."""
+        if self._grab_busy:
+            return
+        self._grab_busy = True
+
+        def work():
+            try:
+                _shot, found = self._grab_hotbar()
+                if found and self.slots.sync(found["slot"]):
+                    self._update_tool()
+            except Exception:
+                pass
+            finally:
+                self._grab_busy = False
+
+        threading.Thread(target=work, name="hotbar", daemon=True).start()
+
+    def _learn_mouse(self, down: bool) -> None:
+        if down:
+            self._learn_press = time.monotonic() if self._game_in_front() else None
+            return
+        start, self._learn_press = self._learn_press, None
+        if start is not None and time.monotonic() - start >= LEARN_HOLD:
+            threading.Thread(target=self._finish_learning, name="learn", daemon=True).start()
+
+    def _finish_learning(self) -> None:
+        """Block wurde abgebaut: Platz (+ Bild vom Item) als Werkzeug speichern."""
+        try:
+            shot, found = self._grab_hotbar()
+        except Exception:
+            shot, found = None, None
+        slot = found["slot"] if found else self.slots.slot
+        self.slots.sync(slot)
+        icon = ""
+        if found:
+            try:
+                rows = item_pixels(shot, found, slot)
+                if not looks_empty(rows):
+                    icon = png_data_url(rows)
+            except Exception:
+                icon = ""
+        with self._lock:
+            if not self.learning:
+                return
+            self.learning = False
+            self.config.learn_tool(slot, icon)
+            self._notify("n_tool_saved")
+            self._apply()
+            self._save_soon()
+
+    def tools_action(self, body: dict):
+        op = body.get("op")
+        if op == "learn":
+            self.engine.stop("manual")  # beim Anlernen nicht klicken
+            self.learning = True
+            self._learn_press = None
+            self._learn_deadline = time.monotonic() + LEARN_TIMEOUT
+        elif op == "cancel":
+            self.learning = False
+        elif op == "delete":
+            slot = body.get("slot")
+            if not isinstance(slot, int) or not self.config.delete_tool(slot):
+                return {"error": "e_not_found"}
+            self._save_soon()
+        else:
+            return {"error": "Unbekannte Aktion"}
+        self._apply()
+        return self.state()
 
     def _on_record(self, slot: str, text: str | None) -> None:
         with self._lock:
@@ -202,6 +324,8 @@ class App:
             "rev": self.rev,
             "engine": self.engine.status(),
             "recording": self.recording,
+            "learning": self.learning,
+            "slot": self.slots.slot,
             "notice": self.notice if self.notice and time.time() - self.notice["at"] < 6 else None,
             "update": self.update_state(),
         }
@@ -215,6 +339,7 @@ class App:
                 "mode": self.config.mode(),
                 "current": self.config.current(),
                 "hotkeys": snap["hotkeys"],
+                "tools": snap["tools"],
                 "general": general,
             }
             out["info"] = {
@@ -254,6 +379,8 @@ class App:
             return self.state()
         if name == "hotkeys":
             return self.hotkeys(body)
+        if name == "tools":
+            return self.tools_action(body)
         if name == "update":
             return self.update_action(str(body.get("op", "")))
         if name == "bye":

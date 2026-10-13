@@ -12,6 +12,10 @@ Modi:
   hold_mouse  – an + Maustaste gedrueckt halten = schnelle Klicks
   boost       – an + jeder echte Klick bekommt Extra-Klicks (x2 / x3)
 
+Werkzeug (nur hold_mouse / boost): Ist ein angelerntes Werkzeug in der Hand
+(siehe hotbar.py), wird nicht geklickt – die Maustaste bleibt normal gedrueckt,
+damit man Bloecke abbauen kann.
+
 Aktion (nur bei toggle):
   click – klicken im eingestellten Tempo
   hold  – Maustaste dauerhaft gedrueckt halten (z. B. Baeume/Steine abbauen)
@@ -72,6 +76,7 @@ class ClickEngine:
         self._boost_owed = 0                 # Extra-Klicks, die noch faellig sind
         self._boost_due: float | None = None  # Zeitpunkt des naechsten Extra-Klicks
         self._holding: str | None = None   # Taste, die gerade dauerhaft gedrueckt wird
+        self._tool = False                  # Werkzeug in der Hand -> nicht klicken
         self._state = "idle"
         self._reason = ""
         self._stop_reason = ""
@@ -166,12 +171,37 @@ class ClickEngine:
             if self._armed and button == c.button and c.mode in ("hold_mouse", "boost"):
                 if held and not was:
                     self.total_clicks += 1  # der echte Klick zaehlt in der CPS-Anzeige mit
-                elif was and not held and c.mode == "boost":
+                elif was and not held and c.mode == "boost" and not self._tool:
                     # Extra-Klicks nach dem Loslassen. Was beim letzten Klick nicht mehr
                     # geschafft wurde (zu schnell wieder gedrueckt), wird jetzt nachgeholt.
                     self._boost_owed = min(MAX_PENDING_BOOST, self._boost_owed + max(1, c.boost) - 1)
                     self._boost_due = self._clock() + random.uniform(0.012, 0.024)
         self._wake.set()
+
+    def set_tool(self, active: bool) -> None:
+        """Werkzeug in die Hand genommen / weggelegt (Hotbar-Platz gewechselt)."""
+        press = None
+        with self._lock:
+            if active == self._tool:
+                return
+            self._tool = active
+            c = self.cfg
+            if active:
+                self._clear_boost()
+                # Waehrend gehalten wurde gewechselt: unser letzter Klick hat die Taste im
+                # Spiel losgelassen -> wieder druecken, damit sofort abgebaut wird.
+                if self._armed and c.mode == "hold_mouse" and c.button in self._mouse_held:
+                    press = c.button
+        if press:
+            try:
+                self.backend.press(press)
+            except Exception:
+                pass
+        self._wake.set()
+
+    @property
+    def tool(self) -> bool:
+        return self._tool
 
     def reset_stats(self) -> None:
         with self._lock:
@@ -196,6 +226,7 @@ class ClickEngine:
                 "stop_reason": self._stop_reason,
                 "armed": self._armed,
                 "holding": self._holding is not None,
+                "tool": self._tool,
                 "countdown": (max(0.0, self._countdown_end - now)
                               if self._countdown_end is not None else None),
                 "run_time": round(run_time, 2),
@@ -235,6 +266,8 @@ class ClickEngine:
             return "countdown", ""
         if not self._armed:
             return "idle", ""
+        if c.mode in ("hold_mouse", "boost") and self._tool:
+            return "ready", "tool"  # Werkzeug: Maustaste normal halten, nicht klicken
         if c.mode == "hold_mouse" and c.button not in self._mouse_held:
             return "ready", "mouse"
         if c.mode == "boost" and (not self._boost_owed or c.button in self._mouse_held):
