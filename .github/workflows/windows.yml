@@ -80,7 +80,17 @@ jobs:
           gh release view $tag *> $null
           $exists = ($LASTEXITCODE -eq 0)
           if ($exists -and "${{ github.ref }}" -eq "refs/heads/main") {
-            Write-Host "Release $tag gibt es schon - nichts zu tun."
+            $assets = gh release view $tag --json assets --jq ".assets[].name"
+            if ($assets -contains "AutoClicker-Setup-$version.exe") {
+              Write-Host "Release $tag gibt es schon - nichts zu tun."
+              exit 0
+            }
+            # Release wurde von Hand angelegt (z. B. mit alten Dateien) -> richtige Dateien hochladen
+            foreach ($a in $assets) {
+              if ($a -like "AutoClicker-*" -and $a -notlike "*-$version*") { gh release delete-asset $tag $a --yes }
+            }
+            gh release upload $tag $files --clobber
+            gh release edit $tag --title "AutoClicker $version" --notes-file installer/release_notes.md
             exit 0
           }
           if ($exists) {

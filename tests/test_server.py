@@ -76,8 +76,11 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(code, 400)
 
     def test_presets_and_hotkeys(self):
+        self.req("/api/action", {"do": "toggle"})
         code, body = self.req("/api/preset", {"id": "boost"})
-        self.assertEqual(json.loads(body)["config"]["mode"], "boost")
+        st = json.loads(body)
+        self.assertEqual(st["config"]["mode"], "boost")
+        self.assertFalse(st["engine"]["armed"])  # Moduswechsel stoppt den Klicker
         code, body = self.req("/api/preset", {"id": "nope"})
         self.assertEqual(code, 400)
         self.req("/api/preset", {"id": "standard"})

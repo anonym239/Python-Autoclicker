@@ -44,7 +44,8 @@
   let lang = "de", locale = "de-DE";
   function pickLang(setting) {
     if (TEXTS[setting]) return setting;
-    const sys = (navigator.languages || [navigator.language || ""]).map((l) => String(l).slice(0, 2).toLowerCase());
+    const ALIAS = { no: "nb", nn: "nb" };
+    const sys = (navigator.languages || [navigator.language || ""]).map((l) => String(l).slice(0, 2).toLowerCase()).map((l) => ALIAS[l] || l);
     return sys.find((l) => TEXTS[l]) || "en";
   }
   // t("hint_idle", { key: "F6" }) – fehlt ein Text, gilt Englisch, dann Deutsch, dann der Schluessel selbst
@@ -52,12 +53,14 @@
     const raw = (TEXTS[lang] || {})[key] ?? (TEXTS.en || {})[key] ?? (TEXTS.de || {})[key] ?? key;
     return vars ? raw.replace(/\{(\w+)\}/g, (m, k) => (vars[k] ?? m)) : raw;
   }
+  let langReady = false;
   function setLang(setting) {
     const next = pickLang(setting);
     store.set("ac_lang", setting);
-    if (next === lang && document.documentElement.lang === next) return false;
+    if (langReady && next === lang) return false;
+    langReady = true;
     lang = next;
-    locale = { de: "de-DE", en: "en-US", es: "es-ES", fr: "fr-FR", tr: "tr-TR", pl: "pl-PL" }[lang] || lang;
+    locale = { de: "de-DE", en: "en-US", pt: "pt-BR", zh: "zh-CN" }[lang] || lang;
     document.documentElement.lang = lang;
     $$("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
     $$("[data-i18n-aria]").forEach((el) => el.setAttribute("aria-label", t(el.dataset.i18nAria)));

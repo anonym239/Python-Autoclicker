@@ -6,7 +6,7 @@ window.AC_MOCK = (() => {
   const PRESETS = __PRESETS__;
 
   const cfg = JSON.parse(JSON.stringify(CONFIG));
-  let update = { version: "6.5", status: "available", progress: 0, error: "", can_install: true };
+  let update = { version: "6.6", status: "available", progress: 0, error: "", can_install: true };
   let rev = 1, recording = null, recordUntil = 0, notice = null, noticeId = 0;
   const now = () => performance.now() / 1000;
   const eng = {
@@ -139,6 +139,7 @@ window.AC_MOCK = (() => {
       if (b.general) Object.assign(cfg.general, b.general);
     } else if (name === "preset") {
       if (!PRESETS[b.id]) fail("Unbekannter Modus");
+      if (b.id !== cfg.preset && (eng.armed || eng.countdownEnd)) stop("manual");
       cfg.preset = b.id; eng.owed = 0;
     } else if (name === "hotkeys") {
       hotkeys(b);
