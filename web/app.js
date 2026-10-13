@@ -204,14 +204,6 @@
     $("#st-time").textContent = clock(E.run_time);
     $("#st-best").textContent = nf(E.best_cps);
 
-    // Grosser Hinweis ueber der CPS-Anzeige, wenn (noch) nicht geklickt wird
-    let banner = null;
-    if (st === "countdown") banner = [`Start in ${secs} …`, "Wechsle jetzt ins Spiel – dann geht's los."];
-    else if (st === "paused" && E.reason === "self") banner = ["Läuft – wechsle jetzt ins Spiel!", "In dieses Fenster wird nicht geklickt. Sobald das Spiel vorne ist, geht's los."];
-    else if (st === "paused") banner = ["Pause – Minecraft ist nicht vorne", "Sobald Minecraft im Vordergrund ist, wird wieder geklickt."];
-    $("#banner").hidden = !banner;
-    if (banner) { $("#banner-title").textContent = banner[0]; $("#banner-text").textContent = banner[1]; }
-
     const start = $("#start");
     start.classList.toggle("stop", E.armed);
     start.classList.toggle("wait", st === "countdown");
@@ -231,6 +223,7 @@
       if (E.stop_reason === "limit") hint = "Auto-Stopp erreicht.";
     }
     $("#hint").textContent = recording !== null ? "Drück jetzt die neue Taste (Esc = abbrechen)." : hint;
+    $("#hint").classList.toggle("attn", recording === null && st === "paused");
   }
 
   function apply(st) {

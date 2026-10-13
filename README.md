@@ -30,8 +30,7 @@ Unter **Hotkeys bearbeiten** legst du eigene Tasten an – jeweils für An/Aus, 
 (auch Kombinationen wie Strg+R oder die Maus-Seitentasten). Weitere Optionen (Countdown vor dem Start,
 Auto-Stopp, nur in Minecraft klicken, Hell/Dunkel) findest du unter **Einstellungen**.
 
-> In das AutoClicker-Fenster selbst wird nie geklickt. Ist es vorne, zeigt es groß
-> „Läuft – wechsle jetzt ins Spiel!“ – sobald das Spiel vorne ist, geht's los.
+> In das AutoClicker-Fenster selbst wird nie geklickt – wechsle nach dem Start ins Spiel.
 
 Viele Server verbieten Autoclicker – nutze ihn dort, wo es erlaubt ist.
 
@@ -43,5 +42,5 @@ Viele Server verbieten Autoclicker – nutze ihn dort, wo es erlaubt ist.
   dann `python tools/build_windows.py`
 
 **Neues Release mit .exe:** Auf GitHub unter *Releases → Draft a new release* einen Tag wie
-`v6.2.0` anlegen und veröffentlichen. Der Workflow *Windows-Build* baut dann automatisch
+`v6.2` anlegen und veröffentlichen. Der Workflow *Windows-Build* baut dann automatisch
 Setup und ZIP und hängt beides an das Release.
