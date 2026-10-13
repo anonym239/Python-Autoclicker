@@ -1,7 +1,7 @@
 """Baut eine einzelne HTML-Datei als Live-Vorschau der Oberflaeche.
 
 Die Vorschau nutzt dieselben Dateien wie das Programm (web/index.html,
-style.css, app.js) – nur das Python-Programm dahinter wird im Browser
+style.css, i18n.js, app.js) – nur das Python-Programm dahinter wird im Browser
 simuliert (tools/preview_mock.js).
 
     python tools/build_preview.py [ziel.html]
@@ -110,6 +110,9 @@ def build() -> str:
 </div>
 <script>
 {mock}
+</script>
+<script>
+{read(WEB, "i18n.js")}
 </script>
 <script>
 {read(WEB, "app.js")}

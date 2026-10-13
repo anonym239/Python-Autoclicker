@@ -225,6 +225,7 @@ svg { fill: currentColor; }
 .hk-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: 6px; }
 .hk-row .keycap { min-width: 96px; }
 .hk-row select { flex: 1; padding: 5px 8px; border-radius: 4px; border: 1px solid var(--field-line); background: var(--field); color: var(--fg); font: inherit; }
+.lang { width: 100%; padding: 7px 10px; border-radius: 4px; border: 1px solid var(--field-line); background: var(--field); color: var(--fg); font: inherit; }
 .hk-empty { margin: 0; padding: 12px; text-align: center; color: var(--muted); background: var(--card); border: 1px dashed var(--field-line); border-radius: 6px; }
 .btn.add { margin: 0 20px 10px; }
 .btn.add.rec { border-color: var(--accent); color: var(--accent); animation: blink 1s ease-in-out infinite; }

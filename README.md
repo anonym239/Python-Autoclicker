@@ -7,6 +7,7 @@ Ein einfacher, schneller Autoclicker für Windows 10/11 (nur PC) – mit Modus f
 1. Rechts auf GitHub unter **Releases** die neueste Version öffnen.
 2. **`AutoClicker-Setup-….exe`** herunterladen und starten.
 3. Fertig – „AutoClicker“ steht jetzt im Startmenü (auf Wunsch auch auf dem Desktop).
+   Das Programm öffnet sein eigenes Fenster und steht im Task-Manager als „AutoClicker“.
 
 > Windows zeigt bei neuen Programmen manchmal „Der Computer wurde durch Windows geschützt“.
 > Dann auf **Weitere Informationen → Trotzdem ausführen** klicken.
@@ -30,6 +31,9 @@ lässt sich der Hinweis wegklicken.
 | CPS-Boost | F6 an, dann normal klicken – **jeder Klick zählt doppelt** (oder dreifach) |
 | AFK-Farm | Klickt langsam weiter (1,6 CPS = Schwert-Cooldown) – oder hält die Maustaste **gedrückt**, z. B. zum Bäume- oder Steine-Abbauen |
 
+**Sprache:** Deutsch, English, Español, Français, Türkçe oder Polski – unter **Einstellungen → Sprache**
+(„Automatisch“ nimmt die Sprache von Windows).
+
 Unter **Hotkeys bearbeiten** legst du eigene Tasten an – jeweils für An/Aus, nur An oder nur Aus
 (auch Kombinationen wie Strg+R oder die Maus-Seitentasten). Weitere Optionen (Countdown vor dem Start,
 Auto-Stopp, nur in Minecraft klicken, Hell/Dunkel) findest du unter **Einstellungen**.
@@ -40,9 +44,10 @@ Viele Server verbieten Autoclicker – nutze ihn dort, wo es erlaubt ist.
 
 ## Für Entwickler
 
-- Aus dem Quellcode starten: `python autoclicker.py` (Python 3.9+, keine Zusatzmodule)
+- Aus dem Quellcode starten: `python autoclicker.py` (Python 3.9+). Mit `pip install pywebview` öffnet sich
+  das eigene Programmfenster (WebView2), sonst ein Edge/Chrome-App-Fenster.
 - Tests: `python -m unittest discover -s tests -t .`
-- EXE + Installer bauen (Windows): `pip install pyinstaller`, Inno Setup 6 installieren,
+- EXE + Installer bauen (Windows): `pip install pyinstaller pywebview`, Inno Setup 6 installieren,
   dann `python tools/build_windows.py`
 
 **Neues Release:** Versionsnummer in `clicker/__init__.py` erhöhen und nach `main` mergen –
