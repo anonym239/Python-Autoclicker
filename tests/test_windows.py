@@ -85,6 +85,13 @@ class WindowsBackendTests(unittest.TestCase):
         self.assertTrue(wait_for(lambda: len(self.mouse) >= 2), self.mouse)
         self.assertEqual(self.mouse[:2], [("left", True), ("left", False)])
 
+    def test_press_and_release_are_own_events(self):
+        self.be.press("left")
+        time.sleep(0.05)
+        self.be.release("left")
+        time.sleep(0.3)
+        self.assertEqual(self.mouse, [], "eigenes Halten darf nicht als echter Klick zaehlen")
+
     def test_mouse_hook_can_be_removed(self):
         self.be.set_mouse_hook(False)
         time.sleep(0.2)

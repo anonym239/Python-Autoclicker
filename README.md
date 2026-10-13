@@ -28,7 +28,7 @@ lässt sich der Hinweis wegklicken.
 | Standard | F6 an, F6 aus – klickt mit dem eingestellten Tempo |
 | Minecraft PvP | F6 an, dann Maustaste **halten** = schnelle Klicks |
 | CPS-Boost | F6 an, dann normal klicken – **jeder Klick zählt doppelt** (oder dreifach) |
-| AFK-Farm | Klickt langsam weiter (1,6 CPS = Schwert-Cooldown) |
+| AFK-Farm | Klickt langsam weiter (1,6 CPS = Schwert-Cooldown) – oder hält die Maustaste **gedrückt**, z. B. zum Bäume- oder Steine-Abbauen |
 
 Unter **Hotkeys bearbeiten** legst du eigene Tasten an – jeweils für An/Aus, nur An oder nur Aus
 (auch Kombinationen wie Strg+R oder die Maus-Seitentasten). Weitere Optionen (Countdown vor dem Start,

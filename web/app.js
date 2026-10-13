@@ -43,7 +43,7 @@
     standard: "Hotkey drücken: Es wird sofort automatisch geklickt, bis du ihn nochmal drückst.",
     pvp: "Hotkey drücken, dann im Spiel die Maustaste gedrückt halten. Solange du hältst, wird schnell geklickt.",
     boost: "Hotkey drücken, dann ganz normal klicken. Zu jedem Klick kommen Extra-Klicks dazu, so steigen deine CPS.",
-    afk: "Klickt langsam weiter (1,6 CPS = Schwert-Cooldown ab 1.9). Ideal für Mob-Farmen.",
+    afk: "Klickt langsam weiter (1,6 CPS = Schwert-Cooldown ab 1.9) – oder hält die Maustaste gedrückt, z. B. zum Bäume- oder Steine-Abbauen.",
   };
   const STATUS = { idle: "Aus", ready: "Bereit", clicking: "Klickt", paused: "Pause", countdown: "Start" };
   const ACTIONS = { toggle: "An / Aus", on: "Nur an", off: "Nur aus" };
@@ -114,7 +114,10 @@
     $("#title").textContent = preset ? preset.name : "";
     $("#desc").textContent = DESC[C.preset] || "";
 
-    $("#row-speed").hidden = mode === "boost";
+    const holdMode = C.preset === "afk" && cur.action === "hold";
+    $("#row-action").hidden = C.preset !== "afk";
+    pressed("#action-seg", cur.action || "click");
+    $("#row-speed").hidden = mode === "boost" || holdMode;
     $("#row-boost").hidden = mode !== "boost";
     if (canSet($("#speed"))) $("#speed").value = Math.min(30, cur.cps);
     setVal($("#speed-num"), cur.cps);
@@ -122,7 +125,8 @@
     pressed("#button-seg", cur.button);
 
     setVal($("#o-stop"), g.auto_stop);
-    setVal($("#o-delay"), g.start_delay);
+    setVal($("#o-delay"), Math.round(g.start_delay));
+    $("#o-delay-value").textContent = g.start_delay > 0 ? `${Math.round(g.start_delay)} s` : "Aus";
     setChecked($("#o-vary"), g.vary);
     setChecked($("#o-lock"), g.window_lock);
     setVal($("#o-match"), g.window_match);
@@ -197,7 +201,7 @@
     const status = $("#status");
     status.dataset.s = st;
     const secs = Math.max(1, Math.ceil(E.countdown || 0));
-    status.textContent = st === "countdown" ? `Start in ${secs}` : STATUS[st] || st;
+    status.textContent = st === "countdown" ? `Start in ${secs}` : st === "clicking" && E.holding ? "Hält" : STATUS[st] || st;
     $(".live").dataset.s = st;
     $("#cps").textContent = nf(E.cps);
     $("#st-clicks").textContent = new Intl.NumberFormat("de-DE").format(E.session_clicks);
@@ -217,6 +221,7 @@
       if (st === "paused") hint = E.reason === "self" ? "Läuft – wechsle ins Spiel. In dieses Fenster wird nicht geklickt." : "Pause – Minecraft ist nicht im Vordergrund.";
       else if (mode === "hold_mouse") hint = st === "clicking" ? "Klickt, solange du hältst." : `Bereit – halte die ${btn} Maustaste gedrückt.`;
       else if (mode === "boost") hint = st === "clicking" ? "Boost!" : "Bereit – klick einfach ganz normal.";
+      else if (E.holding || (C.preset === "afk" && C.current.action === "hold")) hint = `Hält die ${btn} Maustaste gedrückt.`;
       else hint = "Klickt dort, wo die Maus gerade ist.";
     } else {
       hint = main ? `Drück ${keyLabel(main.key)} – auch mitten im Spiel.` : "Leg unter „Hotkeys bearbeiten“ eine Taste an.";
@@ -300,7 +305,14 @@
   }
   numberInput($("#speed-num"), (v) => sendPreset({ cps: Math.min(1000, Math.max(0.1, v)) }));
   numberInput($("#o-stop"), (v) => sendGeneral({ auto_stop: Math.max(0, v) }));
-  numberInput($("#o-delay"), (v) => sendGeneral({ start_delay: Math.max(0, Math.min(60, v)) }));
+  $("#o-delay").addEventListener("input", (e) => {
+    markEdit(e.target);
+    const v = +e.target.value;
+    $("#o-delay-value").textContent = v > 0 ? `${v} s` : "Aus";
+    clearTimeout(e.target._t);
+    e.target._t = setTimeout(() => sendGeneral({ start_delay: v }), 150);
+  });
+  $$("#action-seg [data-val]").forEach((b) => b.addEventListener("click", () => sendPreset({ action: b.dataset.val })));
   [["#o-vary", "vary"], ["#o-lock", "window_lock"], ["#o-top", "always_on_top"], ["#o-sound", "sound"]].forEach(([sel, key]) =>
     $(sel).addEventListener("change", (e) => { markEdit(e.target); sendGeneral({ [key]: e.target.checked }); }));
   $("#o-match").addEventListener("change", (e) => { markEdit(e.target); sendGeneral({ window_match: e.target.value }); });
