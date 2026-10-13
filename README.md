@@ -1,6 +1,6 @@
 # AutoClicker
 
-Ein einfacher, schneller Autoclicker für Windows 10/11 – mit Modus für Minecraft-PvP und CPS-Boost.
+Ein einfacher, schneller Autoclicker für Windows 10/11 (nur PC) – mit Modus für Minecraft-PvP und CPS-Boost.
 
 ## Installieren
 
@@ -17,7 +17,7 @@ Ohne Installation: `AutoClicker-…-portable.zip` entpacken und `AutoClicker.exe
 
 1. **Links einen Modus wählen.**
 2. **Tempo einstellen** (Klicks pro Sekunde).
-3. **F6 drücken** – auch mitten im Spiel. Nochmal F6 = Stopp.
+3. **F6 drücken** – auch mitten im Spiel. Es wird sofort geklickt, nochmal F6 = Stopp.
 
 | Modus | Was passiert |
 | --- | --- |
@@ -26,8 +26,11 @@ Ohne Installation: `AutoClicker-…-portable.zip` entpacken und `AutoClicker.exe
 | CPS-Boost | F6 an, dann normal klicken – **jeder Klick zählt doppelt** (oder dreifach) |
 | AFK-Farm | Klickt langsam weiter (1,6 CPS = Schwert-Cooldown) |
 
-Den Hotkey änderst du, indem du auf das Tasten-Feld klickst. Weitere Optionen (Auto-Stopp,
-nur in Minecraft klicken, Handy-Steuerung, Hell/Dunkel) findest du unter **Einstellungen**.
+Unter **Hotkeys bearbeiten** legst du eigene Tasten an – jeweils für An/Aus, nur An oder nur Aus
+(auch Kombinationen wie Strg+R oder die Maus-Seitentasten). Weitere Optionen (Countdown vor dem Start,
+Auto-Stopp, nur in Minecraft klicken, Hell/Dunkel) findest du unter **Einstellungen**.
+
+> In das AutoClicker-Fenster selbst wird nie geklickt – wechsle nach dem Start ins Spiel.
 
 Viele Server verbieten Autoclicker – nutze ihn dort, wo es erlaubt ist.
 
@@ -39,7 +42,5 @@ Viele Server verbieten Autoclicker – nutze ihn dort, wo es erlaubt ist.
   dann `python tools/build_windows.py`
 
 **Neues Release mit .exe:** Auf GitHub unter *Releases → Draft a new release* einen Tag wie
-`v6.0.0` anlegen und veröffentlichen. Der Workflow *Windows-Build* baut dann automatisch
+`v6.2` anlegen und veröffentlichen. Der Workflow *Windows-Build* baut dann automatisch
 Setup und ZIP und hängt beides an das Release.
-
-Lizenz von Drittanbieter-Code: QR-Code-Generator von Project Nayuki (MIT), `clicker/qrcodegen.py`.

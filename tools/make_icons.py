@@ -2,8 +2,7 @@
 
     python tools/make_icons.py
 
-Schreibt web/icon.svg, web/icon-192.png, web/icon-512.png, web/apple-touch-icon.png
-und assets/icon.ico (fuer .exe und Installer). Zum Rendern wird Node.js mit
+Schreibt web/icon.svg + web/icon-256.png (Fenster-Icon) und assets/icon.ico (fuer .exe und Installer). Zum Rendern wird Node.js mit
 Playwright gebraucht (nur fuer Entwickler, nicht zum Benutzen der App).
 """
 
@@ -26,7 +25,6 @@ ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
 """
 
 ICO_SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
-PNG_FILES = {"icon-192.png": 192, "icon-512.png": 512, "apple-touch-icon.png": 180}
 
 RENDER_JS = r"""
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -65,7 +63,7 @@ def write_ico(path: str, pngs: dict) -> None:
 def main():
     with open(os.path.join(ROOT, "web", "icon.svg"), "w", encoding="utf-8") as f:
         f.write(ICON_SVG)
-    sizes = sorted(set(ICO_SIZES) | set(PNG_FILES.values()))
+    sizes = sorted(ICO_SIZES)
     with tempfile.TemporaryDirectory() as tmp:
         svg_file = os.path.join(tmp, "icon.svg")
         js_file = os.path.join(tmp, "render.js")
@@ -78,11 +76,10 @@ def main():
         for s in sizes:
             with open(os.path.join(tmp, f"{s}.png"), "rb") as f:
                 pngs[s] = f.read()
-    for name, s in PNG_FILES.items():
-        with open(os.path.join(ROOT, "web", name), "wb") as f:
-            f.write(pngs[s])
     os.makedirs(os.path.join(ROOT, "assets"), exist_ok=True)
     write_ico(os.path.join(ROOT, "assets", "icon.ico"), {s: pngs[s] for s in ICO_SIZES})
+    with open(os.path.join(ROOT, "web", "icon-256.png"), "wb") as f:  # grosses Fenster-Icon
+        f.write(pngs[256])
     print("Icons geschrieben.")
 
 

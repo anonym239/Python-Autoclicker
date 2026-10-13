@@ -18,7 +18,7 @@ class ConfigTests(unittest.TestCase):
         c = Config(self.dir)
         c.load()
         self.assertEqual(list(c.data["presets"]), list(PRESET_ORDER))
-        self.assertEqual(c.data["hotkey"], "f6")
+        self.assertEqual(c.hotkeys(), [{"key": "f6", "action": "toggle"}])
         self.assertEqual(c.mode(), "toggle")
         token = c.data["general"]["token"]
         self.assertGreaterEqual(len(token), 8)
@@ -49,12 +49,41 @@ class ConfigTests(unittest.TestCase):
     def test_variation_and_limits(self):
         c = Config(self.dir)
         c.load()
-        c.update({"preset": {"cps": 10}, "general": {"vary": True, "auto_stop": 30, "start_delay": "2,5"}})
+        c.update({"preset": {"cps": 10}, "general": {"vary": True, "auto_stop": "30,5"}})
         s = c.click_settings()
         self.assertAlmostEqual(s.cps_min, 8.8)
         self.assertAlmostEqual(s.cps_max, 11.2)
-        self.assertEqual(s.limit_seconds, 30)
-        self.assertEqual(s.start_delay, 2.5)
+        self.assertEqual(s.limit_seconds, 30.5)
+        self.assertEqual(s.start_delay, 0)  # Standard: sofort klicken
+        c.update({"general": {"start_delay": 99}})
+        self.assertEqual(c.click_settings().start_delay, 60)
+
+    def test_hotkeys(self):
+        c = Config(self.dir)
+        c.load()
+        self.assertIsNone(c.set_hotkey(None, "mouse4"))
+        self.assertIsNone(c.set_hotkey(None, "Ctrl+R"))
+        self.assertEqual(c.set_hotkey(None, "f6"), "Diese Taste ist schon belegt")
+        self.assertEqual(c.set_hotkey(None, "quatsch"), "Diese Taste geht leider nicht")
+        self.assertTrue(c.set_hotkey_action(1, "on"))
+        self.assertFalse(c.set_hotkey_action(1, "explode"))
+        self.assertIsNone(c.set_hotkey(0, "f8"))  # vorhandenen Hotkey aendern
+        self.assertEqual(c.hotkeys(), [{"key": "f8", "action": "toggle"},
+                                       {"key": "mouse4", "action": "on"},
+                                       {"key": "ctrl+r", "action": "toggle"}])
+        self.assertTrue(c.delete_hotkey(2))
+        self.assertFalse(c.delete_hotkey(7))
+        c.save()
+        c2 = Config(self.dir)
+        c2.load()
+        self.assertEqual(len(c2.hotkeys()), 2)
+
+    def test_old_single_hotkey_is_converted(self):
+        with open(os.path.join(self.dir, "clicker_settings.json"), "w") as f:
+            json.dump({"general": {}, "hotkey": "f7", "hotkeys": None}, f)
+        c = Config(self.dir)
+        c.load()
+        self.assertEqual(c.hotkeys(), [{"key": "f7", "action": "toggle"}])
 
     def test_sanitize(self):
         c = Config(self.dir)
@@ -76,7 +105,8 @@ class ConfigTests(unittest.TestCase):
         c = Config(self.dir)
         c.load()
         self.assertEqual(c.data["presets"]["standard"]["cps"], 1000)
-        self.assertEqual(c.data["hotkey"], "home")
+        # v5 hatte getrennte Start- und Stopp-Tasten
+        self.assertEqual(c.hotkeys(), [{"key": "home", "action": "on"}, {"key": "up", "action": "off"}])
         self.assertEqual(c.migrated_from, "autoclicker_settings.json")
 
     def test_migrates_tk_key_names(self):
@@ -84,7 +114,7 @@ class ConfigTests(unittest.TestCase):
             json.dump({"interval_ms": "100", "hotkey_start": "Prior", "auto_stop_sec": "20"}, f)
         c = Config(self.dir)
         c.load()
-        self.assertEqual(c.data["hotkey"], "pageup")
+        self.assertEqual(c.hotkeys(), [{"key": "pageup", "action": "toggle"}])
         self.assertEqual(c.data["presets"]["standard"]["cps"], 10)
         self.assertEqual(c.data["general"]["auto_stop"], 20)
 

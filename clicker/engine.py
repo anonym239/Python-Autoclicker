@@ -1,21 +1,19 @@
-"""Klick-Engine: Zustandsautomat + praezises Timing + Live-Statistik.
+"""Klick-Engine: an/aus, praezises Timing und Live-CPS.
 
 Zustaende (fuer die Oberflaeche):
-  idle       – aus
-  countdown  – Start-Countdown laeuft
-  ready      – bereit, wartet auf die gehaltene Maus-/Tastaturtaste
-  clicking   – klickt gerade (bzw. haelt die Taste beim Dauerdruecken)
-  paused     – an, aber pausiert (falsches Fenster, Inventar offen, ...)
+  idle      – aus
+  countdown – Start-Countdown laeuft (nur wenn in den Einstellungen eingestellt)
+  ready     – an, wartet auf echte Klicks (Minecraft PvP / CPS-Boost)
+  clicking  – klickt gerade
+  paused    – an, aber pausiert (anderes Fenster vorne / eigenes Fenster)
 
 Modi:
-  toggle      – Hotkey/Button schaltet an und aus
-  hold_mouse  – an + Maustaste gedrueckt halten = Autoklick (klassisch fuer PvP)
+  toggle      – an = klickt sofort mit dem eingestellten Tempo
+  hold_mouse  – an + Maustaste gedrueckt halten = schnelle Klicks
   boost       – an + jeder echte Klick bekommt Extra-Klicks (x2 / x3)
-  hold_key    – klickt, solange der Hotkey gehalten wird
 
 Timing: absolute Zeitplanung (kein Aufsummieren von Verzoegerungen),
-grob schlafen und nur die letzten ~2 ms genau warten. Dadurch stimmen auch
-hohe CPS, ohne dauerhaft einen CPU-Kern zu belegen.
+grob schlafen und nur die letzten ~2 ms genau warten.
 """
 
 from __future__ import annotations
@@ -28,22 +26,19 @@ from dataclasses import dataclass, field
 
 from . import WINDOW_TITLE
 
-MODES = ("toggle", "hold_mouse", "boost", "hold_key")
+MODES = ("toggle", "hold_mouse", "boost")
 BUTTONS = ("left", "right", "middle")
-ACTIONS = ("click", "hold")
+MAX_PENDING_BOOST = 6  # nie mehr Extra-Klicks auf einmal nachholen
 
 
 @dataclass
 class ClickSettings:
     button: str = "left"
     mode: str = "toggle"
-    action: str = "click"
     cps_min: float = 10.0
     cps_max: float = 10.0
     boost: int = 2
-    hold_ms: float = 0.0
     limit_seconds: float = 0.0
-    limit_clicks: int = 0
     start_delay: float = 0.0
 
 
@@ -51,12 +46,9 @@ class ClickSettings:
 class SmartSettings:
     window_lock: bool = False
     window_match: list = field(default_factory=lambda: ["Minecraft"])
-    pause_in_menus: bool = False
 
 
 class ClickEngine:
-    UI_MIN_DELAY = 3.0  # Start per Button/Handy: Zeit, um die Maus ins Spiel zu bewegen
-
     def __init__(self, backend, clock=time.perf_counter):
         self.backend = backend
         self._clock = clock
@@ -65,30 +57,24 @@ class ClickEngine:
         self._quit = False
         self.cfg = ClickSettings()
         self.smart = SmartSettings()
-        self.on_event = None  # callback(name) – "start", "stop", "limit", "tick"
+        self.on_event = None  # callback(name): "start", "stop", "limit"
 
         self._armed = False
         self._countdown_end: float | None = None
-        self._last_tick = 0
         self._run_start: float | None = None
-        self._run_clicks = 0
         self._mouse_held: set[str] = set()
-        self._boost_due: deque = deque()   # Zeitpunkte der Boost-Extra-Klicks
-        self._key_held = False
-        self._holding_button: str | None = None
+        self._boost_owed = 0                 # Extra-Klicks, die noch faellig sind
+        self._boost_due: float | None = None  # Zeitpunkt des naechsten Extra-Klicks
         self._state = "idle"
         self._reason = ""
         self._stop_reason = ""
 
-        self.total_clicks = 0       # diese Session
-        self.lifetime_base = 0      # alle frueheren Sessions (aus der Config)
+        self.total_clicks = 0       # diese Sitzung
+        self.lifetime_base = 0      # alle frueheren Sitzungen (aus der Config)
         self.best_cps = 0.0
         self.cps_live = 0.0
         self._samples: deque = deque(maxlen=5)
-        self.history: deque = deque([0.0] * 120, maxlen=120)  # 30 s bei 4 Hz
-
         self._fg_cache = ("", -1.0)
-        self._cap_cache = (None, -1.0)
 
         self._thread = threading.Thread(target=self._loop, name="click-engine", daemon=True)
         self._stats = threading.Thread(target=self._stats_loop, name="stats", daemon=True)
@@ -102,22 +88,17 @@ class ClickEngine:
         with self._lock:
             self._quit = True
             self._armed = False
-            self._countdown_end = None
         self._wake.set()
         if self._thread.is_alive():
             self._thread.join(1.0)
-        self._release_hold()
         self.backend.set_timer_resolution(False)
 
     def configure(self, cfg: ClickSettings, smart: SmartSettings) -> None:
         with self._lock:
+            if cfg.mode != self.cfg.mode or cfg.button != self.cfg.button:
+                self._clear_boost()
             self.cfg = cfg
             self.smart = smart
-            if cfg.mode == "hold_key":
-                # In diesem Modus gibt es kein "an/aus" – nur Taste halten
-                self._armed = False
-                self._countdown_end = None
-                self._run_start = None
         self._wake.set()
 
     # ─── Steuerung ────────────────────────────────────────
@@ -125,33 +106,32 @@ class ClickEngine:
     def armed(self) -> bool:
         return self._armed
 
-    def toggle(self, source: str = "ui") -> None:
-        with self._lock:
-            on = self._armed or self._countdown_end is not None
-        if on:
+    def toggle(self) -> None:
+        if self._armed or self._countdown_end is not None:
             self.stop("manual")
         else:
-            self.start(source)
+            self.start()
 
-    def start(self, source: str = "ui") -> None:
-        events = []
+    def start(self) -> None:
+        """An – sofort, oder nach dem eingestellten Countdown."""
         with self._lock:
-            if (self._quit or self._armed or self._countdown_end is not None
-                    or self.cfg.mode == "hold_key"):
+            if self._quit or self._armed or self._countdown_end is not None:
                 return
-            delay = max(0.0, self.cfg.start_delay)
-            if source in ("ui", "remote"):
-                delay = max(delay, self.UI_MIN_DELAY)
             self._stop_reason = ""
-            if delay > 0:
-                self._countdown_end = self._clock() + delay
-                self._last_tick = int(delay + 0.999)
-                events.append("tick")
+            if self.cfg.start_delay > 0:
+                self._countdown_end = self._clock() + self.cfg.start_delay
+                event = "countdown"
             else:
-                self._arm_now()
-                events.append("start")
+                self._arm()
+                event = "start"
         self._wake.set()
-        self._emit(events)
+        self._emit(event)
+
+    def _arm(self) -> None:
+        self._armed = True
+        self._countdown_end = None
+        self._run_start = self._clock()
+        self._clear_boost()
 
     def stop(self, reason: str = "manual") -> None:
         with self._lock:
@@ -159,12 +139,12 @@ class ClickEngine:
             self._armed = False
             self._countdown_end = None
             self._run_start = None
-            self._boost_due.clear()
+            self._clear_boost()
             if was_on:
                 self._stop_reason = reason
         self._wake.set()
         if was_on:
-            self._emit(["limit" if reason == "limit" else "stop"])
+            self._emit("limit" if reason == "limit" else "stop")
 
     def set_mouse_held(self, button: str, held: bool) -> None:
         """Echte (physische) Maustaste gedrueckt/losgelassen."""
@@ -177,29 +157,19 @@ class ClickEngine:
             c = self.cfg
             if self._armed and button == c.button and c.mode in ("hold_mouse", "boost"):
                 if held and not was:
-                    # der echte Klick zaehlt in der CPS-Anzeige mit
-                    self.total_clicks += 1
-                    self._run_clicks += 1
-                    self._boost_due.clear()
+                    self.total_clicks += 1  # der echte Klick zaehlt in der CPS-Anzeige mit
                 elif was and not held and c.mode == "boost":
-                    t = self._clock()
-                    for i in range(max(1, c.boost) - 1):
-                        t += random.uniform(0.012, 0.024) if i == 0 else random.uniform(0.028, 0.045)
-                        self._boost_due.append(t)
-        self._wake.set()
-
-    def set_key_held(self, held: bool) -> None:
-        with self._lock:
-            self._key_held = held
+                    # Extra-Klicks nach dem Loslassen. Was beim letzten Klick nicht mehr
+                    # geschafft wurde (zu schnell wieder gedrueckt), wird jetzt nachgeholt.
+                    self._boost_owed = min(MAX_PENDING_BOOST, self._boost_owed + max(1, c.boost) - 1)
+                    self._boost_due = self._clock() + random.uniform(0.012, 0.024)
         self._wake.set()
 
     def reset_stats(self) -> None:
         with self._lock:
             self.lifetime_base += self.total_clicks
             self.total_clicks = 0
-            self._run_clicks = 0
             self.best_cps = 0.0
-            self.history.extend([0.0] * self.history.maxlen)
             self._samples.clear()
             if self._run_start is not None:
                 self._run_start = self._clock()
@@ -207,52 +177,37 @@ class ClickEngine:
     def lifetime_clicks(self) -> int:
         return self.lifetime_base + self.total_clicks
 
-    # ─── Status fuer die UI ───────────────────────────────
+    # ─── Status fuer die Oberflaeche ──────────────────────
     def status(self) -> dict:
         now = self._clock()
         with self._lock:
-            c = self.cfg
-            cd = max(0.0, self._countdown_end - now) if self._countdown_end is not None else None
             run_time = (now - self._run_start) if self._run_start is not None else 0.0
-            progress = None
-            if self._armed and c.limit_clicks > 0:
-                progress = min(1.0, self._run_clicks / c.limit_clicks)
-            if self._armed and c.limit_seconds > 0:
-                p = min(1.0, run_time / c.limit_seconds)
-                progress = p if progress is None else max(progress, p)
             return {
                 "state": self._state,
                 "reason": self._reason,
                 "stop_reason": self._stop_reason,
                 "armed": self._armed,
-                "countdown": cd,
+                "countdown": (max(0.0, self._countdown_end - now)
+                              if self._countdown_end is not None else None),
                 "run_time": round(run_time, 2),
-                "run_clicks": self._run_clicks,
                 "session_clicks": self.total_clicks,
                 "lifetime_clicks": self.lifetime_clicks(),
                 "cps": round(self.cps_live, 1),
                 "best_cps": round(self.best_cps, 1),
-                "history": [round(v, 1) for v in self.history],
-                "limit_progress": progress,
-                "holding": self._holding_button is not None,
             }
 
     # ─── intern ───────────────────────────────────────────
-    def _emit(self, events) -> None:
+    def _emit(self, event: str) -> None:
         cb = self.on_event
-        if not cb:
-            return
-        for ev in events:
+        if cb:
             try:
-                cb(ev)
+                cb(event)
             except Exception:
                 pass
 
-    def _arm_now(self) -> None:
-        self._armed = True
-        self._countdown_end = None
-        self._run_start = self._clock()
-        self._run_clicks = 0
+    def _clear_boost(self) -> None:
+        self._boost_owed = 0
+        self._boost_due = None
 
     def _foreground(self, now: float) -> str:
         title, ts = self._fg_cache
@@ -264,175 +219,109 @@ class ClickEngine:
             self._fg_cache = (title, now)
         return title
 
-    def _captured(self, now: float):
-        val, ts = self._cap_cache
-        if now - ts > 0.05 or ts < 0:
-            try:
-                val = self.backend.mouse_captured()
-            except Exception:
-                val = None
-            self._cap_cache = (val, now)
-        return val
-
     def _evaluate(self, now: float) -> tuple[str, str]:
         """-> (state, reason). Nur 'clicking' bedeutet: jetzt klicken."""
         c, s = self.cfg, self.smart
         if self._countdown_end is not None:
             return "countdown", ""
-        if c.mode == "hold_key":
-            if not self._key_held:
-                return "ready", "key"
-        elif not self._armed:
+        if not self._armed:
             return "idle", ""
-        elif c.mode == "hold_mouse" and c.button not in self._mouse_held:
+        if c.mode == "hold_mouse" and c.button not in self._mouse_held:
             return "ready", "mouse"
-        elif c.mode == "boost" and not self._boost_due:
-            return "ready", "boost"
+        if c.mode == "boost" and (not self._boost_owed or c.button in self._mouse_held):
+            return "ready", "boost"  # beim Halten nie dazwischenklicken
         low = self._foreground(now).lower()
         if s.window_lock:
             if not any(m.strip().lower() in low for m in s.window_match if m.strip()):
                 return "paused", "window"
         elif WINDOW_TITLE.lower() in low:
             return "paused", "self"  # nie ins eigene Fenster klicken
-        if s.pause_in_menus and self._captured(now) is False:
-            return "paused", "menu"
         return "clicking", ""
-
-    def _limit_reached(self, now: float) -> bool:
-        c = self.cfg
-        if not self._armed:
-            return False
-        if c.limit_clicks > 0 and self._run_clicks >= c.limit_clicks:
-            return True
-        return (c.limit_seconds > 0 and self._run_start is not None
-                and now - self._run_start >= c.limit_seconds)
 
     def _next_interval(self, cfg: ClickSettings) -> float:
         lo, hi = sorted((max(0.1, cfg.cps_min), max(0.1, cfg.cps_max)))
         cps = lo if hi - lo < 1e-9 else random.uniform(lo, hi)
         return 1.0 / cps
 
-    def _release_hold(self) -> None:
-        btn = self._holding_button
-        if btn:
-            self._holding_button = None
-            try:
-                self.backend.release(btn)
-            except Exception:
-                pass
-
     def _wait(self, seconds: float) -> None:
         if seconds > 0 and self._wake.wait(seconds):
             self._wake.clear()
+
+    def _sleep_until(self, target: float) -> bool:
+        """Bis target warten. False = frueher aufgeweckt (Zustand neu pruefen)."""
+        remaining = target - self._clock()
+        if remaining > 0.003:
+            self._wait(remaining - 0.002)
+            return False
+        while self._clock() < target:
+            time.sleep(0)
+        return True
+
+    def _click(self, button: str) -> None:
+        try:
+            self.backend.click(button)
+        except Exception:
+            pass
+        with self._lock:
+            self.total_clicks += 1
 
     def _loop(self) -> None:
         next_t: float | None = None
         timer_high = False
         while not self._quit:
             now = self._clock()
-            events = []
+            started = False
             with self._lock:
-                if self._countdown_end is not None:
-                    left = self._countdown_end - now
-                    if left <= 0:
-                        self._arm_now()
-                        events.append("start")
-                    else:
-                        tick = int(left + 0.999)
-                        if tick < self._last_tick:
-                            self._last_tick = tick
-                            events.append("tick")
-                limit_hit = self._limit_reached(now)
+                if self._countdown_end is not None and now >= self._countdown_end:
+                    self._arm()
+                    started = True
+                c = self.cfg
+                limit_hit = (self._armed and c.limit_seconds > 0 and self._run_start is not None
+                             and now - self._run_start >= c.limit_seconds)
                 if not limit_hit:
-                    state, reason = self._evaluate(now)
-                    self._state, self._reason = state, reason
-                cfg = self.cfg
-            self._emit(events)
+                    self._state, self._reason = self._evaluate(now)
+                state, cfg = self._state, self.cfg
+            if started:
+                self._emit("start")
             if limit_hit:
                 self.stop("limit")
                 continue
 
-            want_timer = state == "clicking"
+            want_timer = state in ("clicking", "ready")
             if want_timer != timer_high:
                 self.backend.set_timer_resolution(want_timer)
                 timer_high = want_timer
 
             if state != "clicking":
-                self._release_hold()
                 next_t = None
-                self._wait({"countdown": 0.02, "paused": 0.02, "ready": 0.05}.get(state, 0.25))
+                self._wait(0.02 if state in ("paused", "countdown") else 0.05 if state == "ready" else 0.25)
                 continue
-
-            # Dauerdruecken (nur im Umschalt-Modus)
-            if cfg.action == "hold" and cfg.mode == "toggle":
-                if self._holding_button != cfg.button:
-                    self._release_hold()
-                    self.backend.press(cfg.button)
-                    self._holding_button = cfg.button
-                self._wait(0.02)
-                continue
-            self._release_hold()
 
             if cfg.mode == "boost":
-                self._boost_step(now, cfg)
                 next_t = None
+                with self._lock:
+                    due = self._boost_due if self._boost_due is not None else now
+                if not self._sleep_until(due):
+                    continue
+                with self._lock:
+                    # waehrend des Wartens wieder gedrueckt? Dann nach dem Loslassen nachholen
+                    if not self._boost_owed or cfg.button in self._mouse_held or not self._armed:
+                        continue
+                    self._boost_owed -= 1
+                    self._boost_due = self._clock() + random.uniform(0.028, 0.045)
+                self._click(cfg.button)
                 continue
 
             if next_t is None:
                 # Bei "Maus halten" hat der echte Klick gerade schon ausgeloest
                 next_t = now + (self._next_interval(cfg) if cfg.mode == "hold_mouse" else 0.0)
-            remaining = next_t - now
-            if remaining > 0.003:
-                self._wait(remaining - 0.002)
+            if not self._sleep_until(next_t):
                 continue  # neu bewerten – Zustand kann sich geaendert haben
-            while self._clock() < next_t:
-                time.sleep(0)
-
-            interval = self._next_interval(cfg)
-            hold_s = min(cfg.hold_ms / 1000.0, interval * 0.6)
-            try:
-                self.backend.click(cfg.button, hold_s)
-            except Exception:
-                pass
-            with self._lock:
-                self.total_clicks += 1
-                self._run_clicks += 1
-
-            next_t += interval
+            self._click(cfg.button)
+            next_t += self._next_interval(cfg)
             after = self._clock()
             if next_t < after - 0.010:  # weit hinterher -> kein Nachhol-Burst
                 next_t = after
-        self._release_hold()
-
-    def _boost_step(self, now: float, cfg: ClickSettings) -> None:
-        with self._lock:
-            due = self._boost_due[0] if self._boost_due else None
-        if due is None:
-            return
-        if now - due > 0.15:  # veraltet (z. B. nach einer Pause) -> verwerfen
-            with self._lock:
-                if self._boost_due and self._boost_due[0] == due:
-                    self._boost_due.popleft()
-            return
-        if due - now > 0.003:
-            self._wait(due - now - 0.002)
-            return
-        while self._clock() < due:
-            time.sleep(0)
-        with self._lock:
-            if not self._boost_due or self._boost_due[0] != due:
-                return  # inzwischen neu gedrueckt -> Extra-Klick verworfen
-            self._boost_due.popleft()
-            physically_down = cfg.button in self._mouse_held
-        if physically_down:
-            return  # nie in einen echten, gehaltenen Klick hineinklicken
-        try:
-            self.backend.click(cfg.button, 0.0)
-        except Exception:
-            pass
-        with self._lock:
-            self.total_clicks += 1
-            self._run_clicks += 1
 
     def _stats_loop(self) -> None:
         while not self._quit:
@@ -445,7 +334,6 @@ class ClickEngine:
                     if t1 > t0 and c1 >= c0:
                         cps = (c1 - c0) / (t1 - t0)
                 self.cps_live = cps
-                self.history.append(cps)
                 if cps > self.best_cps:
                     self.best_cps = cps
             time.sleep(0.25)

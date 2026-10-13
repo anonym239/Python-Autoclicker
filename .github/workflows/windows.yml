@@ -1,7 +1,7 @@
 name: Windows-Build
 
 # Baut bei jedem Push die AutoClicker.exe + Installer.
-# Bei einem veroeffentlichten Release werden beide Dateien automatisch angehaengt.
+# Bei einem Versions-Tag (z. B. v6.2) wird automatisch ein Release mit beiden Dateien erstellt.
 on:
   push:
   pull_request:
@@ -54,11 +54,18 @@ jobs:
             dist/AutoClicker-Setup-*.exe
             dist/AutoClicker-*-portable.zip
 
-      - name: An das Release anhängen
-        if: github.event_name == 'release'
+      - name: Release erstellen bzw. Dateien anhängen
+        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $tag = if ("${{ github.event_name }}" -eq "release") { "${{ github.event.release.tag_name }}" } else { "${{ github.ref_name }}" }
           $files = Get-ChildItem dist\AutoClicker-Setup-*.exe, dist\AutoClicker-*-portable.zip | ForEach-Object { $_.FullName }
-          gh release upload "${{ github.event.release.tag_name }}" $files --clobber
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            $notes = "**Download:** ``AutoClicker-Setup-*.exe`` herunterladen und starten.`n`nOhne Installation: die ``portable.zip`` entpacken und ``AutoClicker.exe`` starten.`n`nWindows-Warnung „Der Computer wurde durch Windows geschützt“: **Weitere Informationen → Trotzdem ausführen**."
+            gh release create $tag $files --title "AutoClicker $($tag.TrimStart('v'))" --notes $notes
+          } else {
+            gh release upload $tag $files --clobber
+          }
