@@ -6,7 +6,7 @@ window.AC_MOCK = (() => {
   const PRESETS = __PRESETS__;
 
   const cfg = JSON.parse(JSON.stringify(CONFIG));
-  let update = { version: "6.11", status: "available", progress: 0, error: "", can_install: true };
+  let update = { version: "6.12", status: "available", progress: 0, error: "", can_install: true };
   let rev = 1, recording = null, recordUntil = 0, notice = null, noticeId = 0;
   let learning = false, slot = 1, learnPress = null;
   cfg.tools = cfg.tools || [];
