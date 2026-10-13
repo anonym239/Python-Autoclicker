@@ -226,6 +226,30 @@
     $("#hint").classList.toggle("attn", recording === null && st === "paused");
   }
 
+  // ─── Update-Hinweis ────────────────────────────────────
+  let closing = false;
+  function renderUpdate(u) {
+    const bar = $("#update");
+    bar.hidden = !u;
+    if (!u) return;
+    const busy = u.status === "downloading" || u.status === "installing";
+    bar.classList.toggle("error", u.status === "error");
+    $("#update-btns").hidden = busy;
+    $("#update-install").textContent = u.status === "error" ? "Nochmal versuchen" : u.can_install ? "Jetzt aktualisieren" : "Zum Download";
+    $("#update-text").textContent =
+      u.status === "downloading" ? `Update ${u.version} wird geladen … ${Math.round(u.progress * 100)} %`
+      : u.status === "installing" ? `Update ${u.version} wird installiert – AutoClicker startet gleich neu.`
+      : u.status === "error" ? `Update fehlgeschlagen: ${u.error}`
+      : `Neue Version ${u.version} ist da.`;
+    if (u.status === "installing" && !closing && client === "desktop") {
+      closing = true;
+      setTimeout(() => window.close(), 1500);  // die neue Version oeffnet ein neues Fenster
+    }
+  }
+  $("#update-install").addEventListener("click", () => send("update", { op: "install" }));
+  $("#update-later").addEventListener("click", () => send("update", { op: "later" }));
+  $("#update-skip").addEventListener("click", () => send("update", { op: "skip" }));
+
   function apply(st) {
     const wasRecording = recording;
     if (st.config) { C = st.config; INFO = st.info; rev = st.rev; }
@@ -233,6 +257,7 @@
     recording = st.recording === undefined ? null : st.recording;
     if (st.config) renderConfig();
     else if (wasRecording !== recording && C) renderHotkeys();
+    renderUpdate(st.update || null);
     if (st.notice && st.notice.id !== lastNotice) { lastNotice = st.notice.id; toast(st.notice.text); }
     renderLive();
   }

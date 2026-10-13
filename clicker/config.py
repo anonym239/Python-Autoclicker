@@ -47,6 +47,8 @@ DEFAULTS = {
         "token": "",
         "port": DEFAULT_PORT,
         "tutorial_done": False,
+        "update_skip": "",            # diese Version nicht mehr anzeigen
+        "update_snooze_until": 0.0,   # "In 5 Tagen erinnern" (Unix-Zeit)
     },
     "stats": {"lifetime_clicks": 0, "best_cps": 0.0},
 }
@@ -226,6 +228,10 @@ class Config:
         if "window_match" in g:
             text = ", ".join(x.strip() for x in str(g["window_match"]).split(",") if x.strip())
             out["window_match"] = text[:200] or DEFAULTS["general"]["window_match"]
+        if "update_skip" in g:
+            out["update_skip"] = str(g["update_skip"] or "")[:20]
+        if "update_snooze_until" in g:
+            out["update_snooze_until"] = _num(g["update_snooze_until"], 0, 10**11, 0.0)
         if g.get("theme") in THEMES:
             out["theme"] = g["theme"]
         if allow_private:

@@ -1,7 +1,8 @@
 name: Windows-Build
 
 # Baut bei jedem Push die AutoClicker.exe + Installer.
-# Bei einem Versions-Tag (z. B. v6.2) wird automatisch ein Release mit beiden Dateien erstellt.
+# Landet eine neue Version (clicker/__init__.py) in main, wird automatisch ein Release
+# mit Setup + ZIP erstellt. Die App zeigt das Update dann von selbst an.
 on:
   push:
   pull_request:
@@ -55,17 +56,26 @@ jobs:
             dist/AutoClicker-*-portable.zip
 
       - name: Release erstellen bzw. Dateien anhängen
-        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
+        # Neue Version in main -> Release automatisch. Tag v… oder manuelles Release -> Dateien anhängen.
+        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = if ("${{ github.event_name }}" -eq "release") { "${{ github.event.release.tag_name }}" } else { "${{ github.ref_name }}" }
+          $version = python -c "import clicker; print(clicker.VERSION)"
+          if ("${{ github.event_name }}" -eq "release") { $tag = "${{ github.event.release.tag_name }}" }
+          elseif ("${{ github.ref }}".StartsWith("refs/tags/")) { $tag = "${{ github.ref_name }}" }
+          else { $tag = "v$version" }
           $files = Get-ChildItem dist\AutoClicker-Setup-*.exe, dist\AutoClicker-*-portable.zip | ForEach-Object { $_.FullName }
           gh release view $tag *> $null
-          if ($LASTEXITCODE -ne 0) {
-            $notes = "**Download:** ``AutoClicker-Setup-*.exe`` herunterladen und starten.`n`nOhne Installation: die ``portable.zip`` entpacken und ``AutoClicker.exe`` starten.`n`nWindows-Warnung „Der Computer wurde durch Windows geschützt“: **Weitere Informationen → Trotzdem ausführen**."
-            gh release create $tag $files --title "AutoClicker $($tag.TrimStart('v'))" --notes $notes
-          } else {
+          $exists = ($LASTEXITCODE -eq 0)
+          if ($exists -and "${{ github.ref }}" -eq "refs/heads/main") {
+            Write-Host "Release $tag gibt es schon – nichts zu tun."
+            exit 0
+          }
+          if ($exists) {
             gh release upload $tag $files --clobber
+          } else {
+            $notes = "**Download:** ``AutoClicker-Setup-$version.exe`` herunterladen und starten. Wer AutoClicker schon hat, bekommt das Update auch direkt in der App angezeigt.`n`nOhne Installation: ``AutoClicker-$version-portable.zip`` entpacken und ``AutoClicker.exe`` starten.`n`nWindows-Warnung „Der Computer wurde durch Windows geschützt“: **Weitere Informationen → Trotzdem ausführen**."
+            gh release create $tag $files --target "${{ github.sha }}" --title "AutoClicker $version" --notes $notes
           }

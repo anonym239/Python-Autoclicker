@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 import urllib.request
+import webbrowser
 
 from . import APP_NAME, VERSION, WINDOW_TITLE
 from .backend import create_backend
@@ -16,6 +17,7 @@ from .config import PRESET_ORDER, PRESETS, Config, user_data_dir
 from .engine import ClickEngine
 from .keys import HotkeyMatcher
 from .server import WebServer
+from .updater import SNOOZE_SECONDS, Updater
 from .window import open_app_window
 
 RECORD_TIMEOUT = 15.0
@@ -34,6 +36,8 @@ class App:
         self.engine.on_event = self._on_engine_event
         self.matcher = HotkeyMatcher(self._on_hotkey, self._on_mouse, self._on_record)
         self.server = WebServer(self, web_dir, snap["general"]["port"])
+        self.updater = Updater(VERSION)
+        self.can_self_update = bool(getattr(sys, "frozen", False)) and self.backend.name == "windows"
         self.icon_path = ""                   # assets/icon.ico (scharfes Taskleisten-Icon)
         self.keep_alive = keep_alive          # Fenster schliessen beendet NICHT (Tests/--no-window)
         self.rev = 1                          # Konfig-Revision fuer die Oberflaeche
@@ -68,6 +72,8 @@ class App:
         self.engine.start_threads()
         self.backend.start_input(self.matcher)
         self.server.start()
+        if not self.keep_alive:  # nicht in Tests / --no-window
+            self.updater.run_checks(self.quit_event)
         threading.Thread(target=self._housekeeping, name="housekeeping", daemon=True).start()
 
     def shutdown(self) -> None:
@@ -194,6 +200,7 @@ class App:
             "engine": self.engine.status(),
             "recording": self.recording,
             "notice": self.notice if self.notice and time.time() - self.notice["at"] < 6 else None,
+            "update": self.update_state(),
         }
         if str(since) != str(self.rev):
             snap = self.config.snapshot()
@@ -234,11 +241,59 @@ class App:
             return self.state()
         if name == "hotkeys":
             return self.hotkeys(body)
+        if name == "update":
+            return self.update_action(str(body.get("op", "")))
         if name == "bye":
             if client == "desktop":
                 self._bye_at = time.monotonic()
             return {"ok": True}
         return None
+
+    # ─── Updates ────────────────────────────────────────
+    def update_state(self) -> dict | None:
+        u = self.updater
+        if u.status in ("downloading", "installing", "error"):
+            return {"version": (u.available or {}).get("version", ""), "status": u.status,
+                    "progress": round(u.progress, 2), "error": u.error, "can_install": self.can_self_update}
+        info = u.available
+        if not info:
+            return None
+        g = self.config.data["general"]
+        if g["update_skip"] == info["version"] or time.time() < g["update_snooze_until"]:
+            return None
+        return {"version": info["version"], "status": "available", "progress": 0,
+                "error": "", "can_install": self.can_self_update}
+
+    def update_action(self, op: str):
+        info = self.updater.available
+        if op == "check":
+            self.updater.check()
+        elif not info:
+            return {"error": "Kein Update verfügbar"}
+        elif op == "later":
+            self.config.update({"general": {"update_snooze_until": time.time() + SNOOZE_SECONDS}})
+            self._save_soon()
+        elif op == "skip":
+            self.config.update({"general": {"update_skip": info["version"]}})
+            self._save_soon()
+        elif op == "install":
+            if not self.can_self_update:  # aus dem Quellcode gestartet -> Download-Seite oeffnen
+                webbrowser.open(info["page"])
+                return self.state()
+            self.engine.stop("manual")
+            self.updater.install(self._before_update, self._after_update)
+        else:
+            return {"error": "Unbekannte Aktion"}
+        return self.state()
+
+    def _before_update(self) -> None:
+        self._store_stats()
+        self.config.save()
+        self.backend.release_instance()
+
+    def _after_update(self) -> None:
+        # Der Installer laeuft – Programm beenden, damit er die Dateien ersetzen kann
+        self.quit_event.set()
 
     def action(self, do):
         if do == "toggle":

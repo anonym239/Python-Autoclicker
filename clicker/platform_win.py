@@ -103,6 +103,8 @@ user32.SendMessageW.argtypes = [wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM]
 user32.SendMessageW.restype = LRESULT
 kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wt.BOOL, wt.LPCWSTR]
 kernel32.CreateMutexW.restype = wt.HANDLE
+kernel32.CloseHandle.argtypes = [wt.HANDLE]
+kernel32.CloseHandle.restype = wt.BOOL
 kernel32.GetModuleHandleW.argtypes = [wt.LPCWSTR]
 kernel32.GetModuleHandleW.restype = wt.HMODULE
 kernel32.GetCurrentThreadId.restype = wt.DWORD
@@ -260,6 +262,12 @@ class WindowsBackend:
     def claim_instance(self) -> None:
         """Benannter Mutex: der Installer erkennt so ein laufendes Programm."""
         self._mutex = kernel32.CreateMutexW(None, False, "AutoClicker6.Running")
+
+    def release_instance(self) -> None:
+        """Vor einem Update: Mutex freigeben, damit der Installer nicht wartet."""
+        if getattr(self, "_mutex", None):
+            kernel32.CloseHandle(self._mutex)
+            self._mutex = None
 
     # ─── Klicks ──────────────────────────────────────────
     def click(self, button: str) -> None:

@@ -45,6 +45,9 @@ class DemoBackend:
     def claim_instance(self) -> None:
         pass
 
+    def release_instance(self) -> None:
+        pass
+
     def start_input(self, matcher) -> None:
         pass
 
