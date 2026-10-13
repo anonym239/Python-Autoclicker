@@ -37,7 +37,7 @@ Werkzeug nehmen und einen Block abbauen. Der AutoClicker merkt sich den Hotbar-P
 Ist das Werkzeug in der Hand, wird die Maustaste ganz normal gehalten – mit dem Schwert wird schnell geklickt.
 Lege deine Werkzeuge dafür immer auf denselben Platz (z. B. über den Hotbar-Manager bei BedWars).
 
-**Sprache:** Deutsch, English, Español, Français, Türkçe oder Polski – unter **Einstellungen → Sprache**
+**Sprache:** 24 Sprachen (u. a. Deutsch, English, Español, Français, Русский, Українська, Svenska, Suomi, Nederlands …) – unter **Einstellungen → Sprache**
 („Automatisch“ nimmt die Sprache von Windows).
 
 Unter **Hotkeys bearbeiten** legst du eigene Tasten an – jeweils für An/Aus, nur An oder nur Aus

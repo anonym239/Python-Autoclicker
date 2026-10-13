@@ -14,7 +14,7 @@ from .keys import normalize_hotkey
 CONFIG_NAME = "clicker_settings.json"
 OLD_CONFIG_NAMES = ("ac_settings.json", "autoclicker_settings.json")  # v5
 THEMES = ("system", "light", "dark")
-LANGUAGES = ("auto", "de", "en", "es", "fr", "tr", "pl")  # muss zu web/i18n.js passen
+LANGUAGES = ("auto", "de", "en", "es", "fr", "it", "pt", "nl", "sv", "nb", "da", "fi", "pl", "cs", "sk", "hu", "ro", "el", "bg", "ru", "uk", "tr", "ja", "zh", "ko")  # muss zu web/i18n.js passen
 HOTKEY_ACTIONS = ("toggle", "on", "off")  # An/Aus, nur an, nur aus
 MAX_HOTKEYS = 8
 MAX_ICON_LEN = 4000  # data:-URL eines 16x16-Bildes
