@@ -411,6 +411,26 @@ class LearnTests(unittest.TestCase):
             with open(os.path.join(tmp, "hotbar-log.txt"), encoding="utf-8") as f:
                 self.assertIn("Rahmen NICHT erkannt", f.read())
 
+    def test_learn_by_hotkey_with_tool_already_in_hand(self):
+        """Anlern-Hotkey: das Werkzeug ist schon gewaehlt, BEVOR das Anlernen startet
+        (leeres Kit, kein erkennbarer Auswahlrahmen) -> trotzdem der richtige Platz."""
+        with tempfile.TemporaryDirectory() as tmp:
+            app = App(tmp, "web", demo=True, keep_alive=True)
+            app.backend.screen = fake_hotbar(1280, 720, 4, {4: (PICKAXE, IRON), 1: (SWORD, IRON)}, frame=False)
+            app.handle("preset", {"id": "pvp"})
+            app.handle("settings", {"general": {"learn_hotkey_on": True}})
+            app._on_raw_input("k", "4", True)       # im Spiel Platz 4 gewaehlt
+            app._on_hotkey("learn", True)           # dann F7
+            self.assertTrue(app.learning)
+            app._on_mouse("left", True)
+            app._on_mouse("left", False)
+            self.assertTrue(self.wait_for(lambda: not app.learning))
+            self.assertEqual(len(app.config.tools()), 1)
+            self.assertIn("learn_ok", app.backend.beeps)
+            shot, found = app._grab_hotbar()
+            self.assertEqual(best_match(item_sample(shot, found, 4), app._tool_templates), 0)   # Spitzhacke
+            self.assertEqual(best_match(item_sample(shot, found, 1), app._tool_templates), -1)  # nicht das Schwert
+
     def test_learn_three_tools_on_see_through_hotbar(self):
         """Lunar Client: durchsichtige Hotbar, drei Werkzeuge nacheinander -> drei Eintraege."""
         with tempfile.TemporaryDirectory() as tmp:
