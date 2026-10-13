@@ -70,12 +70,11 @@ jobs:
           gh release view $tag *> $null
           $exists = ($LASTEXITCODE -eq 0)
           if ($exists -and "${{ github.ref }}" -eq "refs/heads/main") {
-            Write-Host "Release $tag gibt es schon – nichts zu tun."
+            Write-Host "Release $tag gibt es schon - nichts zu tun."
             exit 0
           }
           if ($exists) {
             gh release upload $tag $files --clobber
           } else {
-            $notes = "**Download:** ``AutoClicker-Setup-$version.exe`` herunterladen und starten. Wer AutoClicker schon hat, bekommt das Update auch direkt in der App angezeigt.`n`nOhne Installation: ``AutoClicker-$version-portable.zip`` entpacken und ``AutoClicker.exe`` starten.`n`nWindows-Warnung „Der Computer wurde durch Windows geschützt“: **Weitere Informationen → Trotzdem ausführen**."
-            gh release create $tag $files --target "${{ github.sha }}" --title "AutoClicker $version" --notes $notes
+            gh release create $tag $files --target "${{ github.sha }}" --title "AutoClicker $version" --notes-file installer/release_notes.md
           }
