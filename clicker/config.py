@@ -18,6 +18,7 @@ LANGUAGES = ("auto", "de", "en", "es", "fr", "it", "pt", "nl", "sv", "nb", "da",
 HOTKEY_ACTIONS = ("toggle", "on", "off")  # An/Aus, nur an, nur aus
 MAX_HOTKEYS = 8
 MAX_ICON_LEN = 8000  # data:-URL eines 16x16-Bildes
+MAX_PHOTO_LEN = 40000  # Foto des Hotbar-Platzes (nur Anzeige)
 MAX_TOOLS = 12
 MAX_CPS = 1000.0
 DEFAULT_PORT = 8765
@@ -132,7 +133,11 @@ def sanitize_tools(items) -> list:
         icon = t.get("icon")
         if not (isinstance(icon, str) and icon.startswith("data:image/png;base64,") and len(icon) <= MAX_ICON_LEN):
             icon = ""
-        out.append({"mask": mask, "icon": icon})
+        entry = {"mask": mask, "icon": icon}
+        photo = t.get("photo")
+        if isinstance(photo, str) and photo.startswith("data:image/png;base64,") and len(photo) <= MAX_PHOTO_LEN:
+            entry["photo"] = photo
+        out.append(entry)
     return out[:MAX_TOOLS]
 
 
@@ -375,11 +380,14 @@ class Config:
         with self._lock:
             return [dict(t) for t in self.data["tools"]]
 
-    def learn_tool(self, mask: str, icon: str, replace: int = -1) -> None:
-        """Werkzeug speichern. replace = Index eines gleichen Werkzeugs (wird ersetzt)."""
+    def learn_tool(self, mask: str, icon: str, replace: int = -1, photo: str = "") -> None:
+        """Werkzeug speichern. replace = Index eines gleichen Werkzeugs (wird ersetzt).
+        icon = ausgeschnittenes Item (fuer die Erkennung), photo = Platz 1:1 (zum Anzeigen)."""
         with self._lock:
             tools = self.data["tools"]
             entry = {"mask": mask, "icon": icon}
+            if photo:
+                entry["photo"] = photo
             if 0 <= replace < len(tools):
                 tools[replace] = entry
             else:

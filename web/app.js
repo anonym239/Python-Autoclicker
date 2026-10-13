@@ -259,10 +259,10 @@
       const chip = document.createElement("span");
       chip.className = "tool-chip" + (i === toolIndex ? " on" : "");
       const icon = document.createElement("span");
-      icon.className = "tool-icon";
-      if (tool.icon) {
+      icon.className = "tool-icon" + (tool.photo ? " photo" : "");
+      if (tool.photo || tool.icon) {
         const img = document.createElement("img");
-        img.src = tool.icon; img.alt = "";
+        img.src = tool.photo || tool.icon; img.alt = "";
         icon.appendChild(img);
       } else {
         icon.innerHTML = PICKAXE;

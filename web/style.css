@@ -171,6 +171,8 @@ svg { fill: currentColor; }
 .tool-icon { width: 30px; height: 30px; border-radius: 4px; background: #8b8b8b; box-shadow: inset 2px 2px 0 #373737, inset -2px -2px 0 #fff; display: grid; place-items: center; }
 .tool-icon img { width: 24px; height: 24px; image-rendering: pixelated; }
 .tool-icon svg { width: 18px; height: 18px; color: #fff; }
+.tool-icon.photo { background: none; box-shadow: none; overflow: hidden; }
+.tool-icon.photo img { width: 30px; height: 30px; }
 .tool-chip .icon-btn { width: 20px; height: 20px; font-size: 11px; }
 #tools-learn.rec { border-color: var(--accent); color: var(--accent); animation: blink 1s ease-in-out infinite; }
 .keycap.rec { border-color: var(--accent); color: var(--accent); animation: blink 1s ease-in-out infinite; }
