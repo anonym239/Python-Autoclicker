@@ -1,4 +1,4 @@
-**Neu in dieser Version:** Mehrere Werkzeuge bleiben jetzt gespeichert (Spitzhacke, Axt, Schere … ersetzen sich nicht mehr gegenseitig), die durchsichtige Hotbar von Lunar Client wird sauber vom Item getrennt, und beim Anlernen zählen nur Klicks im Spiel – nicht der Klick auf „Zurück zum Spiel“ im Pause-Menü.
+**Neu in dieser Version:** Werkzeug-Erkennung mit echten Hypixel-Aufnahmen verbessert – jede Spitzhacke (Holz, Eisen, Diamant, Netherite, auch verzaubert) zählt als Werkzeug, genauso Axt und Schere; Schwert, Blöcke und leere Hand bekommen die volle CPS-Zahl. Der gewählte Platz wird auch mit Texture Packs sicher erkannt, und die Werkzeug-Bilder sind jetzt sauber ausgeschnitten. Bitte Werkzeuge einmal neu anlernen.
 
 **Download:** `AutoClicker-Setup-….exe` herunterladen und starten.
 Wer AutoClicker schon installiert hat, bekommt das Update auch direkt in der App angezeigt.

@@ -10,7 +10,7 @@ from clicker.app import App
 from clicker.backend import DemoBackend
 from clicker.engine import ClickEngine, ClickSettings, SmartSettings
 from clicker.hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, analyze, auto_gui_scale, best_match,
-                            item_sample, locate, mask_from_hex, png_bytes, shot_png)
+                            item_sample, locate, mask_from_hex, png_bytes, same_tool, shot_png)
 
 WORLD = (90, 130, 200)
 HOTBAR = (55, 55, 55)
@@ -143,6 +143,43 @@ class HotbarTests(unittest.TestCase):
         self.assertLess(len(url), 8000)
         self.assertEqual(shot_png(shot)[:8], b"\x89PNG\r\n\x1a\n")
         self.assertEqual(png_bytes([[(1, 2, 3)]])[:8], b"\x89PNG\r\n\x1a\n")
+
+
+def real_hypixel_shot():
+    """Echte Aufnahme (Hypixel BedWars, Lunar Client, Texture Pack mit hellen Platz-Raendern):
+    1 Holzschwert, 2 Eisen, 3 Gold, 4 Eisen-Spitzhacke (verzaubert, gewaehlt),
+    5 Eisen-Axt (verzaubert), 6–8 leer, 9 Kompass."""
+    import zlib
+    with open(os.path.join(os.path.dirname(__file__), "data", "hypixel_hotbar.bin"), "rb") as f:
+        blob = f.read()
+    w, h, x0, y0, cw, ch = struct.unpack(">6I", blob[:24])
+    crop = zlib.decompress(blob[24:])
+    rows = CAPTURE_GUI_H * MAX_SCALE
+    px = bytearray(w * rows * 4)
+    for y in range(ch):
+        i = ((y0 + y - (h - rows)) * w + x0) * 4
+        px[i:i + cw * 4] = crop[y * cw * 4:(y + 1) * cw * 4]
+    return Shot(w, rows, bytes(px), h)
+
+
+class RealScreenshotTests(unittest.TestCase):
+    def test_hypixel_hotbar(self):
+        shot = real_hypixel_shot()
+        found = analyze(shot, 1280)
+        self.assertEqual((found["slot"], found["scale"]), (4, 3))
+        items = {i: item_sample(shot, found, i) for i in range(1, 10)}
+        for empty in (6, 7, 8):
+            self.assertTrue(items[empty].empty, empty)
+        pickaxe = [items[4].mask]
+        self.assertEqual(best_match(items[4], pickaxe), 0)
+        self.assertEqual(best_match(items[5], pickaxe), 0)   # Axt ist auch ein Werkzeug – darf passen
+        for other in (1, 2, 3, 9):                            # Schwert, Eisen, Gold, Kompass: nie
+            self.assertEqual(best_match(items[other], pickaxe), -1, other)
+        # Spitzhacke und Axt sind beim Anlernen zwei verschiedene Eintraege
+        self.assertEqual(same_tool(items[5], pickaxe), -1)
+        self.assertEqual(same_tool(items[4], pickaxe), 0)
+        # Icon: nur das Item, durchsichtiger Hintergrund (nicht das ganze Feld)
+        self.assertLess(items[4].size, 100)
 
 
 class FallbackTests(unittest.TestCase):

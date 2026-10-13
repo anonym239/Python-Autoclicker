@@ -28,8 +28,8 @@ MAX_SCALE = 8
 ITEM = 16                     # Items sind 16x16 GUI-Pixel
 MATCH_ROWS = 12               # untere Zeilen nicht vergleichen (Haltbarkeitsbalken, Anzahl)
 MIN_ITEM_PIXELS = 10          # weniger = leerer Platz
-MATCH_IOU = 0.72              # so aehnlich muss der Umriss sein (= gleiches Werkzeug in der Hand)
-SAME_IOU = 0.9                # beim Anlernen: so aehnlich = dasselbe Werkzeug nochmal (ersetzen)
+MATCH_DISTANCE = 0.45         # so nah muss der Umriss sein (= Werkzeug in der Hand), mittlere Pixel
+SAME_IOU = 0.85               # beim Anlernen: so gleich = dasselbe Werkzeug nochmal (ersetzen)
 
 
 class SlotTracker:
@@ -132,22 +132,43 @@ def _ring_brightness(shot: Shot, x0: int, y0: int, slot: int, s: int) -> float:
     return total / n if n else 0.0
 
 
+def _top_edge(shot: Shot, x0: int, y0: int, slot: int, s: int) -> float:
+    """Wie stark hebt sich die Zeile direkt ueber der Hotbar von der Zeile darueber ab?
+
+    Nur der Auswahlrahmen ragt 1 Pixel ueber die Hotbar – bei allen anderen
+    Plaetzen sind beide Zeilen Spielwelt. Klappt mit jedem Texture Pack und
+    jeder Rahmenfarbe."""
+    left = x0 + (slot * 20 - 1) * s
+    h = s // 2
+    total = 0
+    for i in range(2, 22):
+        a = shot.rgb(left + i * s + h, y0 - s + h)
+        b = shot.rgb(left + i * s + h, y0 - 2 * s + h)
+        if a is None or b is None:
+            return 0.0
+        total += _dist(a, b)
+    return total / 20
+
+
 def analyze(shot: Shot, width: int):
     """Hotbar suchen. -> dict(scale, slot 1–9, confidence, x0, y0) oder None.
 
-    Probiert alle GUI-Groessen; gewaehlt ist der Platz mit dem hellsten Rahmen,
-    wenn er sich deutlich von den anderen abhebt."""
+    Probiert alle GUI-Groessen. Gewaehlt wird der Platz, dessen Auswahlrahmen
+    sich deutlich abhebt: zuerst ueber die Oberkante (robust), sonst ueber die
+    Helligkeit des Rahmens."""
     best = None
     for s in range(1, MAX_SCALE + 1):
         if HOTBAR_W * s > width or CAPTURE_GUI_H * s > shot.h:
             break
         x0, y0 = _layout(width, shot.client_h, s)
-        rings = [_ring_brightness(shot, x0, y0, i, s) for i in range(SLOTS)]
-        order = sorted(range(SLOTS), key=lambda i: rings[i], reverse=True)
-        top, second = rings[order[0]], rings[order[1]]
-        conf = top - second
-        if top >= 130 and conf >= 35 and (best is None or conf > best["confidence"]):
-            best = {"scale": s, "slot": order[0] + 1, "confidence": round(conf, 1), "x0": x0, "y0": y0}
+        for score, need_top, need_gap in ((_top_edge, 60, 40), (_ring_brightness, 130, 35)):
+            vals = [score(shot, x0, y0, i, s) for i in range(SLOTS)]
+            order = sorted(range(SLOTS), key=lambda i: vals[i], reverse=True)
+            top, gap = vals[order[0]], vals[order[0]] - vals[order[1]]
+            if top >= need_top and gap >= need_gap:
+                if best is None or gap > best["confidence"]:
+                    best = {"scale": s, "slot": order[0] + 1, "confidence": round(gap, 1), "x0": x0, "y0": y0}
+                break
     return best
 
 
@@ -197,10 +218,12 @@ class Item:
 def item_sample(shot: Shot, found: dict, slot: int) -> Item:
     """Item im Platz ausschneiden und vom Hintergrund trennen.
 
-    Hintergrund = die aeusseren Pixel des Item-Felds, die ein Werkzeug nur selten
-    fuellt. Bei durchsichtiger Hotbar (z. B. Lunar Client) schimmert die Welt durch –
-    dann ist der Rand unruhiger und die Schwelle entsprechend hoeher, damit der
-    Hintergrund nicht zum Item gezaehlt wird."""
+    - Die aeusserste Pixelreihe des 16x16-Felds wird ignoriert: dort liegt bei vielen
+      Texture Packs schon der (helle) Rand des Platzes, nie aber ein wichtiger Teil
+      eines Werkzeugs.
+    - Hintergrund = die naechsten zwei Reihen nach innen, die ein Werkzeug nur selten
+      fuellt. Bei durchsichtiger Hotbar ist der Rand unruhiger – dann ist die
+      Schwelle hoeher, damit die Welt dahinter nicht zum Item gezaehlt wird."""
     s, x0, y0 = found["scale"], found["x0"], found["y0"]
     left = x0 + (3 + (slot - 1) * 20) * s
     top = y0 + 3 * s
@@ -210,14 +233,13 @@ def item_sample(shot: Shot, found: dict, slot: int) -> Item:
         return shot.rgb(left + gx * s + h, top + gy * s + h) or (0, 0, 0)
 
     rows = [[at(gx, gy) for gx in range(ITEM)] for gy in range(ITEM)]
-    # Rand-Streifen (2 Pixel breit) innerhalb des Item-Felds: dort ist fast immer Hintergrund.
-    # (Der Ring ausserhalb ist bei manchen Hotbars eine hellere Trennlinie – nicht nehmen.)
-    edge = [rows[y][x] for y in range(ITEM) for x in range(ITEM)
-            if x < 2 or x > 13 or y < 2 or y > 13]
+    edge = [rows[y][x] for y in range(1, 15) for x in range(1, 15)
+            if x in (1, 2, 13, 14) or y in (1, 2, 13, 14)]
     bg = tuple(sorted(c[k] for c in edge)[len(edge) // 2] for k in range(3))
     spread = sorted(_dist(c, bg) for c in edge)[len(edge) * 2 // 5]
     limit = max(36, 2 * spread + 18)
-    mask = [_dist(rows[y][x], bg) > limit for y in range(ITEM) for x in range(ITEM)]
+    mask = [0 < x < 15 and 0 < y < 15 and _dist(rows[y][x], bg) > limit
+            for y in range(ITEM) for x in range(ITEM)]
     return Item(rows, mask, bg)
 
 
@@ -229,26 +251,62 @@ def mask_from_hex(text: str):
     return [bool(bits >> i & 1) for i in range(ITEM * ITEM)]
 
 
+def _points(mask):
+    """Item-Pixel im Vergleichsbereich (ohne Rand und ohne Haltbarkeitsbalken/Anzahl unten)."""
+    return {(x, y) for y in range(1, MATCH_ROWS) for x in range(1, ITEM - 1) if mask[y * ITEM + x]}
+
+
 def similarity(a, b) -> float:
-    """Wie aehnlich sind zwei Umrisse? (0–1, ohne die unteren Zeilen)"""
-    n = MATCH_ROWS * ITEM
-    both = sum(1 for i in range(n) if a[i] and b[i])
-    either = sum(1 for i in range(n) if a[i] or b[i])
-    return both / either if either else 0.0
+    """Anteil gleicher Pixel (IoU, 0–1) – nur fuer "dasselbe Werkzeug nochmal angelernt"."""
+    pa, pb = _points(a), _points(b)
+    union = pa | pb
+    return len(pa & pb) / len(union) if union else 0.0
 
 
-def best_match(item: Item, masks, needed: float = MATCH_IOU) -> int:
+def distance(a, b) -> float:
+    """Wie weit liegen zwei Umrisse auseinander? (mittlerer Abstand in Pixeln, 0 = gleich)
+
+    Toleriert, dass Spitzhacken aus Holz, Eisen, Diamant oder Netherite (und mit
+    Verzauberungs-Glitzern) je nach Hintergrund an den Raendern leicht anders
+    ausgeschnitten werden – die Form bleibt dieselbe. Schwert, Bloecke, Barren
+    oder Kompass liegen deutlich weiter weg."""
+    pa, pb = _points(a), _points(b)
+    if not pa or not pb:
+        return 99.0
+
+    def gap(p, other):
+        best = 99
+        for q in other:
+            d = max(abs(p[0] - q[0]), abs(p[1] - q[1]))
+            if d < best:
+                best = d
+                if d == 0:
+                    break
+        return best
+
+    return (sum(gap(p, pb) for p in pa) + sum(gap(q, pa) for q in pb)) / (len(pa) + len(pb))
+
+
+def best_match(item: Item, masks) -> int:
     """Index des passenden angelernten Werkzeugs oder -1."""
     if item.empty:
         return -1
-    best, best_i = 0.0, -1
+    best, best_i = MATCH_DISTANCE, -1
     for i, m in enumerate(masks):
         if m is None:
             continue
-        sim = similarity(item.mask, m)
-        if sim > best:
-            best, best_i = sim, i
-    return best_i if best >= needed else -1
+        d = distance(item.mask, m)
+        if d <= best:
+            best, best_i = d, i
+    return best_i
+
+
+def same_tool(item: Item, masks) -> int:
+    """Beim Anlernen: Index eines fast identischen Werkzeugs (wird ersetzt) oder -1."""
+    for i, m in enumerate(masks):
+        if m is not None and similarity(item.mask, m) >= SAME_IOU:
+            return i
+    return -1
 
 
 def png_data_url(rows) -> str:

@@ -2,7 +2,7 @@
 ; Bauen am besten mit:  python tools/build_windows.py
 
 #ifndef AppVersion
-  #define AppVersion "6.9"
+  #define AppVersion "6.10"
 #endif
 
 [Setup]
