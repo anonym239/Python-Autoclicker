@@ -69,6 +69,10 @@ class BITMAPINFOHEADER(ctypes.Structure):
                 ("biClrUsed", wt.DWORD), ("biClrImportant", wt.DWORD)]
 
 
+class CURSORINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wt.DWORD), ("flags", wt.DWORD), ("hCursor", wt.HANDLE), ("ptScreenPos", wt.POINT)]
+
+
 HOOKPROC = ctypes.WINFUNCTYPE(LRESULT, ctypes.c_int, wt.WPARAM, wt.LPARAM)
 WNDENUMPROC = ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
 
@@ -120,6 +124,8 @@ user32.GetClientRect.argtypes = [wt.HWND, ctypes.POINTER(wt.RECT)]
 user32.GetClientRect.restype = wt.BOOL
 user32.ClientToScreen.argtypes = [wt.HWND, ctypes.POINTER(wt.POINT)]
 user32.ClientToScreen.restype = wt.BOOL
+user32.GetCursorInfo.argtypes = [ctypes.c_void_p]
+user32.GetCursorInfo.restype = wt.BOOL
 user32.GetWindowRect.argtypes = [wt.HWND, ctypes.POINTER(wt.RECT)]
 user32.GetWindowRect.restype = wt.BOOL
 user32.PrintWindow.argtypes = [wt.HWND, wt.HDC, wt.UINT]
@@ -369,6 +375,14 @@ class WindowsBackend:
     def foreground_title(self) -> str:
         hwnd = user32.GetForegroundWindow()
         return _window_text(hwnd) if hwnd else ""
+
+    def cursor_visible(self) -> bool:
+        """Mauszeiger sichtbar? Im Spiel versteckt Minecraft ihn, in Menues nicht."""
+        info = CURSORINFO(ctypes.sizeof(CURSORINFO), 0, None, wt.POINT())
+        if not user32.GetCursorInfo(ctypes.byref(info)):
+            return True
+        # Minecraft (GLFW) setzt im Spiel den Zeiger auf "keiner" – Menues zeigen den Pfeil
+        return bool(info.flags & 1) and bool(info.hCursor)  # CURSOR_SHOWING
 
     def grab_bottom(self, rows: int):
         """Unteren Rand des Vordergrundfensters abfotografieren (fuer die Hotbar).

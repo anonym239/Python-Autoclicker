@@ -20,6 +20,7 @@ class DemoBackend:
         self.down: set[str] = set()
         self.foreground = "Minecraft 1.21.4 (Demo)"
         self.screen = None  # (breite, hoehe, BGRA, fensterhoehe) fuer grab_bottom
+        self.cursor = False  # Mauszeiger sichtbar (Menue)?
         self.beeps: list[str] = []
         self.timer_high = False
         self._lock = threading.Lock()
@@ -36,6 +37,9 @@ class DemoBackend:
 
     def foreground_title(self) -> str:
         return self.foreground
+
+    def cursor_visible(self) -> bool:
+        return self.cursor  # Tests: True = Menue offen
 
     def grab_bottom(self, rows: int):
         return self.screen  # Tests koennen hier ein Bild hinlegen

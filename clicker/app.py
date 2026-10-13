@@ -15,7 +15,7 @@ from . import APP_NAME, VERSION, WINDOW_TITLE
 from .backend import create_backend
 from .config import PRESET_ORDER, PRESETS, Config, user_data_dir
 from .engine import ClickEngine
-from .hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, best_match, item_sample, locate,
+from .hotbar import (CAPTURE_GUI_H, MAX_SCALE, SAME_IOU, Shot, SlotTracker, best_match, item_sample, locate,
                      mask_from_hex, shot_png)
 from .keys import HotkeyMatcher
 from .server import WebServer
@@ -53,6 +53,7 @@ class App:
         self.learn_error = ""                 # letzter Fehlschlag beim Anlernen (Textschluessel)
         self._learn_deadline = 0.0
         self._learn_press = False
+        self._learn_skipped = 0
         self._tool_masks: list = []           # Umrisse der angelernten Werkzeuge
         self._tool_btn_down = False
         self._tool_kick = threading.Event()
@@ -212,12 +213,20 @@ class App:
             return False
         return bool(title) and WINDOW_TITLE.lower() not in title
 
+    def _in_game(self) -> bool:
+        """Wirklich im Spiel: Spiel vorne und Mauszeiger versteckt. In Menues,
+        Inventar und Chat zeigt Minecraft den Zeiger – dort zaehlt nichts."""
+        try:
+            return self._game_in_front() and not self.backend.cursor_visible()
+        except Exception:
+            return self._game_in_front()
+
     def _tools_matter(self) -> bool:
         return self.config.mode() in TOOL_MODES and bool(self._tool_masks)
 
     def _on_raw_input(self, kind: str, name: str, down: bool) -> None:
         """Tasten 1–9 / Mausrad im Spiel: gewaehlten Hotbar-Platz mitschreiben."""
-        if not down or not (self.learning or self._tools_matter()) or not self._game_in_front():
+        if not down or not (self.learning or self._tools_matter()) or not self._in_game():
             return
         before = self.slots.slot
         if kind == "k":
@@ -265,9 +274,16 @@ class App:
                 self._check_tool()
 
     def _learn_mouse(self, down: bool) -> None:
-        # Klick im Spiel (Druecken UND Loslassen dort) – im Kreativmodus ist der Block sofort weg
+        # Klick im Spiel (Druecken UND Loslassen dort, nicht im Pause-Menue) – im Kreativmodus
+        # ist der Block sofort weg, deshalb reicht ein Klick
         if down:
-            self._learn_press = self._game_in_front()
+            in_game = self._in_game()
+            if not in_game and self._game_in_front():
+                # Zeiger sichtbar = Menue. Falls ein Spiel den Zeiger nie versteckt,
+                # nicht ewig haengen bleiben: der dritte Klick zaehlt trotzdem.
+                self._learn_skipped += 1
+                in_game = self._learn_skipped >= 3
+            self._learn_press = in_game
         elif self._learn_press and self._game_in_front():
             self._learn_press = False
             threading.Thread(target=self._finish_learning, name="learn", daemon=True).start()
@@ -293,7 +309,7 @@ class App:
                 return
             self.learning = False
             self.learn_error = ""
-            self.config.learn_tool(item.mask_hex(), item.icon(), best_match(item, self._tool_masks))
+            self.config.learn_tool(item.mask_hex(), item.icon(), best_match(item, self._tool_masks, SAME_IOU))
             self._notify("n_tool_saved")
             self.backend.beep("learn_ok")
             self._apply()
@@ -345,6 +361,7 @@ class App:
             self.learning = True
             self.learn_error = ""
             self._learn_press = False
+            self._learn_skipped = 0
             self._learn_deadline = time.monotonic() + LEARN_TIMEOUT
         elif op == "cancel":
             self.learning = False
