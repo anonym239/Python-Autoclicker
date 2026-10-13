@@ -259,7 +259,9 @@ class App:
 
     def _on_raw_input(self, kind: str, name: str, down: bool) -> None:
         """Tasten 1–9 / Mausrad im Spiel: gewaehlten Hotbar-Platz mitschreiben."""
-        if not down or not (self.learning or self._tools_matter()) or not self._in_game():
+        # auch ohne angelernte Werkzeuge mitschreiben: beim Anlern-Hotkey ist das Werkzeug
+        # schon gewaehlt, bevor das Anlernen startet
+        if not down or not (self.learning or self.config.mode() in TOOL_MODES) or not self._in_game():
             return
         before = self.slots.slot
         if kind == "k":
