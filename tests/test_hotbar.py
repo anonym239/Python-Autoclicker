@@ -39,6 +39,7 @@ SHEARS = ["..........XX....", ".........XXX....", "........XXX.....", ".......XX
           "...HHH..XXXX....", "..HHHHH.........", ".HH...HH........", ".HH...HH........",
           "..HHHHH.........", "...HHH..........", "................", "................"]
 NETHERITE, SHEAR_RED = (75, 60, 75), (200, 40, 40)
+WOOD = (160, 120, 70)
 
 
 def fake_hotbar(width, height, selected, items=None, scale=None, frame=True, see_through=False,
@@ -219,6 +220,25 @@ class RealScreenshotTests(unittest.TestCase):
         self.assertEqual(best_match(h[5], back), 1)
         for other in (1, 2, 3, 9):
             self.assertEqual(best_match(h[other], back), -1, other)
+
+    def test_pickaxes_of_different_material_are_kept_apart(self):
+        """Eisen- (Hypixel) und Diamant-Spitzhacke (anderer Server) haben fast dasselbe
+        Hell-Dunkel-Muster – beim Anlernen sind es trotzdem zwei Eintraege. Dasselbe Item
+        nochmal ersetzt den alten Eintrag. Mit allen vier Werkzeugen bleibt der Rest frei."""
+        hyp, srv = real_hypixel_shot(), real_server_shot()
+        fh, fs = analyze(hyp, 1280), analyze(srv, 1280)
+        h = {i: item_sample(hyp, fh, i) for i in range(1, 10)}
+        s = {i: item_sample(srv, fs, i) for i in range(1, 10)}
+        tools = []
+        for item in (h[4], s[2], h[5], s[3]):   # Eisen-Spitzhacke, Diamant-Spitzhacke, Eisen-Axt, Diamant-Axt
+            self.assertEqual(same_tool(item, tools), -1)
+            tools.append(template_from_icon(item.icon()))
+        self.assertEqual(same_tool(h[4], tools), 0)
+        self.assertEqual(same_tool(s[3], tools), 3)
+        for item in (h[4], s[2], h[5], s[3]):
+            self.assertGreaterEqual(best_match(item, tools), 0)
+        for other in (h[1], h[2], h[3], h[9], s[1], s[5], s[6], s[7], s[8], s[9]):
+            self.assertEqual(best_match(other, tools), -1)
 
     def test_animated_background_is_removed_when_learning(self):
         srv = real_server_shot()
@@ -430,6 +450,37 @@ class LearnTests(unittest.TestCase):
             shot, found = app._grab_hotbar()
             self.assertEqual(best_match(item_sample(shot, found, 4), app._tool_templates), 0)   # Spitzhacke
             self.assertEqual(best_match(item_sample(shot, found, 1), app._tool_templates), -1)  # nicht das Schwert
+
+    def test_learn_many_materials_all_kept(self):
+        """Volle Hotbar: Holz-, Diamant-, Netherite-, Eisen- und Gold-Spitzhacke plus zwei Aexte
+        nacheinander anlernen -> alle bleiben einzeln gespeichert (nichts wird ueberschrieben).
+        Danach: jedes Werkzeug bremst, Schwert und Wolle nie."""
+        with tempfile.TemporaryDirectory() as tmp:
+            app = App(tmp, "web", demo=True, keep_alive=True)
+            app.start()
+            screen = app.backend
+            items = {1: (SWORD, DIAMOND), 2: (PICKAXE, WOOD), 3: (PICKAXE, DIAMOND), 4: (PICKAXE, NETHERITE),
+                     5: (PICKAXE, IRON), 6: (PICKAXE, GOLD), 7: (AXE, IRON), 8: (AXE, DIAMOND), 9: (WOOL, IRON)}
+            try:
+                app.handle("preset", {"id": "pvp"})
+                for slot in (2, 3, 4, 5, 6, 7, 8, 3):   # die Diamant-Spitzhacke am Ende nochmal
+                    screen.screen = fake_hotbar(1280, 720, slot, items, see_through=True, slot_lines=True)
+                    app.tools_action({"op": "learn"})
+                    app._on_mouse("left", True)
+                    app._on_mouse("left", False)
+                    self.assertTrue(self.wait_for(lambda: not app.learning), slot)
+                self.assertEqual(len(app.config.tools()), 7)   # die doppelte ersetzt, nicht hinzugefuegt
+
+                app.engine.start()
+                for slot in range(1, 10):
+                    want = 2 <= slot <= 8
+                    screen.screen = fake_hotbar(1280, 720, slot, items, see_through=True, slot_lines=True)
+                    app._on_mouse("left", True)
+                    self.assertTrue(self.wait_for(lambda: app.engine.tool == want and (app.tool_index >= 0) == want),
+                                    (slot, app.tool_index))
+                    app._on_mouse("left", False)
+            finally:
+                app.shutdown()
 
     def test_learn_three_tools_on_see_through_hotbar(self):
         """Lunar Client: durchsichtige Hotbar, drei Werkzeuge nacheinander -> drei Eintraege."""

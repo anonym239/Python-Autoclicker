@@ -31,7 +31,8 @@ ITEM = 16                     # Items sind 16x16 GUI-Pixel
 MATCH_ROWS = 12               # untere Zeilen nicht vergleichen (Haltbarkeitsbalken, Anzahl)
 MIN_ITEM_PIXELS = 10          # weniger = leerer Platz
 MATCH_NCC = 0.7               # so aehnlich muss das Hell-Dunkel-Muster sein (= Werkzeug in der Hand)
-SAME_NCC = 0.9                # beim Anlernen: so aehnlich = dasselbe Werkzeug nochmal (ersetzen)
+SAME_NCC = 0.9                # beim Anlernen: so aehnlich = dasselbe Werkzeug nochmal (ersetzen) ...
+SAME_COLOR = 12.0             # ... aber nur bei (fast) gleicher Farbe: Holz/Eisen/Diamant bleiben einzeln
 MIN_TEMPLATE = 12             # so viele Item-Pixel braucht ein angelerntes Werkzeug mindestens
 
 
@@ -324,9 +325,10 @@ def mask_from_hex(text: str):
 class Template:
     """Angelerntes Werkzeug: an welchen Pixeln es liegt und wie hell sie sind."""
 
-    def __init__(self, mask, lum):
+    def __init__(self, mask, lum, rgb=None):
         idx = [y * ITEM + x for y in range(1, MATCH_ROWS) for x in range(1, ITEM - 1) if mask[y * ITEM + x]]
         self.idx = idx
+        self.rgb = [rgb[i] for i in idx] if rgb else None  # Farben – nur zum Erkennen von Doppelten
         vals = [lum[i] for i in idx]
         self.mean = sum(vals) / len(vals) if vals else 0.0
         self.dev = [v - self.mean for v in vals]
@@ -338,7 +340,8 @@ class Template:
 
     @classmethod
     def from_item(cls, item: "Item") -> "Template":
-        return cls(item.mask, [_luma(px) for row in item.rows for px in row])
+        flat = [px for row in item.rows for px in row]
+        return cls(item.mask, [_luma(px) for px in flat], flat)
 
     def score(self, item: "Item") -> float:
         """Korrelation des Hell-Dunkel-Musters (−1 … 1) an den Pixeln des Werkzeugs."""
@@ -352,6 +355,16 @@ class Template:
             return 0.0
         return sum(a * b for a, b in zip(self.dev, dv)) / (self.norm * norm)
 
+    def color_diff(self, item: "Item") -> float:
+        """Mittlerer Farbunterschied (0 … 255) an den gemeinsamen Item-Pixeln."""
+        if not self.rgb:
+            return 255.0
+        diffs = [sum(abs(a - b) for a, b in zip(c, item.rows[i // ITEM][i % ITEM])) / 3
+                 for i, c in zip(self.idx, self.rgb) if item.mask[i]]
+        if len(diffs) < MIN_TEMPLATE // 2:
+            return 255.0
+        return sum(diffs) / len(diffs)
+
 
 def template_from_icon(url: str):
     """Template aus dem gespeicherten Icon (PNG mit Alpha = Item-Pixel) – so muss nach
@@ -360,8 +373,8 @@ def template_from_icon(url: str):
     if not rows or len(rows) != ITEM or any(len(r) != ITEM for r in rows):
         return None
     mask = [rows[y][x][3] > 127 for y in range(ITEM) for x in range(ITEM)]
-    lum = [_luma(rows[y][x][:3]) for y in range(ITEM) for x in range(ITEM)]
-    t = Template(mask, lum)
+    rgb = [tuple(rows[y][x][:3]) for y in range(ITEM) for x in range(ITEM)]
+    t = Template(mask, [_luma(c) for c in rgb], rgb)
     return t if t.usable else None
 
 
@@ -378,9 +391,10 @@ def best_match(item: Item, templates) -> int:
 
 
 def same_tool(item: Item, templates) -> int:
-    """Beim Anlernen: Index desselben Werkzeugs (wird ersetzt) oder -1."""
+    """Beim Anlernen: Index desselben Werkzeugs (wird ersetzt) oder -1.
+    Gleiche Form reicht nicht – eine Holz- und eine Diamant-Spitzhacke sind zwei Eintraege."""
     for i, t in enumerate(templates):
-        if t is not None and t.score(item) >= SAME_NCC:
+        if t is not None and t.score(item) >= SAME_NCC and t.color_diff(item) <= SAME_COLOR:
             return i
     return -1
 

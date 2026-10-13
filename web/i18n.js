@@ -175,6 +175,7 @@ window.AC_I18N = {
     kit_save: "Speichern",
     kit_delete_q: "„{name}“ mit {n} Werkzeugen löschen?",
     e_max_kits: "Höchstens 10 Kits.",
+    e_max_tools: "Das Kit ist voll (30 Werkzeuge) – lösch eins oder leg ein neues Kit an.",
   },
 
   en: {
@@ -344,6 +345,7 @@ window.AC_I18N = {
     kit_save: "Save",
     kit_delete_q: "Delete “{name}” with {n} tools?",
     e_max_kits: "10 kits at most.",
+    e_max_tools: "This kit is full (30 tools) – delete one or create a new kit.",
   },
 
   es: {
@@ -513,6 +515,7 @@ window.AC_I18N = {
     kit_save: "Guardar",
     kit_delete_q: "¿Eliminar «{name}» con {n} herramientas?",
     e_max_kits: "Como máximo 10 kits.",
+    e_max_tools: "El kit está lleno (30 herramientas) – borra una o crea un kit nuevo.",
   },
 
   fr: {
@@ -682,6 +685,7 @@ window.AC_I18N = {
     kit_save: "Enregistrer",
     kit_delete_q: "Supprimer « {name} » avec {n} outils ?",
     e_max_kits: "10 kits maximum.",
+    e_max_tools: "Le kit est plein (30 outils) – supprimes-en un ou crée un nouveau kit.",
   },
 
   it: {
@@ -851,6 +855,7 @@ window.AC_I18N = {
     kit_save: "Salva",
     kit_delete_q: "Eliminare «{name}» con {n} attrezzi?",
     e_max_kits: "Al massimo 10 kit.",
+    e_max_tools: "Il kit è pieno (30 attrezzi) – eliminane uno o crea un nuovo kit.",
   },
 
   pt: {
@@ -1020,6 +1025,7 @@ window.AC_I18N = {
     kit_save: "Salvar",
     kit_delete_q: "Excluir “{name}” com {n} ferramentas?",
     e_max_kits: "No máximo 10 kits.",
+    e_max_tools: "O kit está cheio (30 ferramentas) – exclua uma ou crie um novo kit.",
   },
 
   nl: {
@@ -1189,6 +1195,7 @@ window.AC_I18N = {
     kit_save: "Opslaan",
     kit_delete_q: "“{name}” met {n} tools verwijderen?",
     e_max_kits: "Maximaal 10 kits.",
+    e_max_tools: "De kit is vol (30 tools) – verwijder er één of maak een nieuwe kit.",
   },
 
   sv: {
@@ -1358,6 +1365,7 @@ window.AC_I18N = {
     kit_save: "Spara",
     kit_delete_q: "Ta bort ”{name}” med {n} verktyg?",
     e_max_kits: "Högst 10 kit.",
+    e_max_tools: "Kitet är fullt (30 verktyg) – ta bort ett eller skapa ett nytt kit.",
   },
 
   nb: {
@@ -1527,6 +1535,7 @@ window.AC_I18N = {
     kit_save: "Lagre",
     kit_delete_q: "Slette «{name}» med {n} verktøy?",
     e_max_kits: "Maks 10 kit.",
+    e_max_tools: "Kitet er fullt (30 verktøy) – slett ett eller lag et nytt kit.",
   },
 
   da: {
@@ -1696,6 +1705,7 @@ window.AC_I18N = {
     kit_save: "Gem",
     kit_delete_q: "Slet “{name}” med {n} værktøjer?",
     e_max_kits: "Højst 10 kits.",
+    e_max_tools: "Kittet er fuldt (30 værktøjer) – slet ét eller opret et nyt kit.",
   },
 
   fi: {
@@ -1865,6 +1875,7 @@ window.AC_I18N = {
     kit_save: "Tallenna",
     kit_delete_q: "Poistetaanko ”{name}” ({n} työkalua)?",
     e_max_kits: "Enintään 10 kittiä.",
+    e_max_tools: "Kitti on täynnä (30 työkalua) – poista yksi tai luo uusi kitti.",
   },
 
   pl: {
@@ -2034,6 +2045,7 @@ window.AC_I18N = {
     kit_save: "Zapisz",
     kit_delete_q: "Usunąć „{name}” z {n} narzędziami?",
     e_max_kits: "Najwyżej 10 kitów.",
+    e_max_tools: "Kit jest pełny (30 narzędzi) – usuń jedno albo utwórz nowy kit.",
   },
 
   cs: {
@@ -2203,6 +2215,7 @@ window.AC_I18N = {
     kit_save: "Uložit",
     kit_delete_q: "Smazat „{name}“ s {n} nástroji?",
     e_max_kits: "Nejvýš 10 kitů.",
+    e_max_tools: "Kit je plný (30 nástrojů) – jeden smaž nebo vytvoř nový kit.",
   },
 
   sk: {
@@ -2372,6 +2385,7 @@ window.AC_I18N = {
     kit_save: "Uložiť",
     kit_delete_q: "Zmazať „{name}“ s {n} nástrojmi?",
     e_max_kits: "Najviac 10 kitov.",
+    e_max_tools: "Kit je plný (30 nástrojov) – jeden zmaž alebo vytvor nový kit.",
   },
 
   hu: {
@@ -2541,6 +2555,7 @@ window.AC_I18N = {
     kit_save: "Mentés",
     kit_delete_q: "Törlöd: „{name}” ({n} eszköz)?",
     e_max_kits: "Legfeljebb 10 kit.",
+    e_max_tools: "A kit megtelt (30 eszköz) – törölj egyet, vagy hozz létre új kitet.",
   },
 
   ro: {
@@ -2710,6 +2725,7 @@ window.AC_I18N = {
     kit_save: "Salvează",
     kit_delete_q: "Ștergi „{name}” cu {n} unelte?",
     e_max_kits: "Cel mult 10 kituri.",
+    e_max_tools: "Kitul e plin (30 de unelte) – șterge una sau creează un kit nou.",
   },
 
   el: {
@@ -2879,6 +2895,7 @@ window.AC_I18N = {
     kit_save: "Αποθήκευση",
     kit_delete_q: "Διαγραφή «{name}» με {n} εργαλεία;",
     e_max_kits: "Το πολύ 10 κιτ.",
+    e_max_tools: "Το κιτ είναι γεμάτο (30 εργαλεία) – διάγραψε ένα ή φτιάξε νέο κιτ.",
   },
 
   bg: {
@@ -3048,6 +3065,7 @@ window.AC_I18N = {
     kit_save: "Запази",
     kit_delete_q: "Да се изтрие ли „{name}“ с {n} инструмента?",
     e_max_kits: "Най-много 10 кита.",
+    e_max_tools: "Китът е пълен (30 инструмента) – изтрий един или създай нов кит.",
   },
 
   ru: {
@@ -3217,6 +3235,7 @@ window.AC_I18N = {
     kit_save: "Сохранить",
     kit_delete_q: "Удалить «{name}» ({n} инструм.)?",
     e_max_kits: "Не больше 10 китов.",
+    e_max_tools: "Кит заполнен (30 инструментов) – удали один или создай новый кит.",
   },
 
   uk: {
@@ -3386,6 +3405,7 @@ window.AC_I18N = {
     kit_save: "Зберегти",
     kit_delete_q: "Видалити «{name}» ({n} інструм.)?",
     e_max_kits: "Не більше 10 кітів.",
+    e_max_tools: "Кіт заповнений (30 інструментів) – видали один або створи новий кіт.",
   },
 
   tr: {
@@ -3555,6 +3575,7 @@ window.AC_I18N = {
     kit_save: "Kaydet",
     kit_delete_q: "“{name}” ({n} alet) silinsin mi?",
     e_max_kits: "En fazla 10 kit.",
+    e_max_tools: "Kit dolu (30 alet) – birini sil ya da yeni bir kit oluştur.",
   },
 
   ja: {
@@ -3724,6 +3745,7 @@ window.AC_I18N = {
     kit_save: "保存",
     kit_delete_q: "「{name}」（ツール{n}個）を削除しますか？",
     e_max_kits: "キットは最大10個です。",
+    e_max_tools: "キットがいっぱいです（ツール30個）。1つ削除するか新しいキットを作ってください。",
   },
 
   zh: {
@@ -3893,6 +3915,7 @@ window.AC_I18N = {
     kit_save: "保存",
     kit_delete_q: "删除“{name}”（{n} 个工具）？",
     e_max_kits: "最多 10 个工具组。",
+    e_max_tools: "工具组已满（30 个工具）– 请删除一个或新建工具组。",
   },
 
   ko: {
@@ -4062,5 +4085,6 @@ window.AC_I18N = {
     kit_save: "저장",
     kit_delete_q: "“{name}”(도구 {n}개)을(를) 삭제할까요?",
     e_max_kits: "키트는 최대 10개입니다.",
+    e_max_tools: "키트가 가득 찼습니다(도구 30개) – 하나를 지우거나 새 키트를 만드세요.",
   },
 };

@@ -162,7 +162,9 @@ svg { fill: currentColor; }
 .hk-summary { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; flex: 1; }
 .hk-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .hk-chip kbd { font: 600 13px/1 var(--font); padding: 5px 8px; border-radius: 5px; border: 1px solid var(--field-line); border-bottom-width: 2px; background: var(--field); color: var(--fg); }
-.tools { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; flex: 1; align-items: center; }
+/* viele Werkzeuge: eine Zeile, seitlich scrollen (Mausrad geht auch) */
+.tools { display: flex; flex-wrap: nowrap; gap: 6px; min-width: 0; flex: 1; align-items: center; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--subtle) transparent; padding: 6px 4px 4px 0; }
+.tool-chip { flex: none; position: relative; }
 .tool-chip {
   display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 6px;
   border: 1px solid var(--field-line); background: var(--field); font-size: 12px; font-weight: 600; color: var(--muted);
@@ -180,7 +182,14 @@ svg { fill: currentColor; }
 .kit-btns { display: flex; justify-content: flex-end; gap: 8px; margin: 0 20px; }
 .tool-icon.photo { background: none; box-shadow: none; overflow: hidden; }
 .tool-icon.photo img { width: 30px; height: 30px; }
-.tool-chip .icon-btn { width: 20px; height: 20px; font-size: 11px; }
+/* Loeschen-Knopf als kleines Abzeichen, erscheint beim Drueberfahren */
+.tool-chip .icon-btn {
+  position: absolute; top: -5px; right: -5px; width: 16px; height: 16px; padding: 0; border-radius: 50%;
+  font-size: 9px; line-height: 16px; background: var(--card); border: 1px solid var(--field-line); color: var(--fg);
+  opacity: 0; transition: opacity .12s;
+}
+.tool-chip:hover .icon-btn, .tool-chip .icon-btn:focus-visible { opacity: 1; }
+.tool-chip .icon-btn:hover { background: var(--hover); }
 #tools-learn.rec { border-color: var(--accent); color: var(--accent); animation: blink 1s ease-in-out infinite; }
 .keycap.rec { border-color: var(--accent); color: var(--accent); animation: blink 1s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: .55; } }
