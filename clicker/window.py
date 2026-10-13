@@ -13,7 +13,7 @@ import subprocess
 import sys
 import webbrowser
 
-WINDOW_SIZE = (840, 600)
+WINDOW_SIZE = (860, 680)  # passt ohne Scrollen, auch mit Update-Hinweis
 
 
 def _candidates():
@@ -100,7 +100,7 @@ def run_native_window(url: str, title: str, on_top: bool, icon: str = "", on_rea
         return False  # ohne WebView2 nimmt pywebview den alten Internet Explorer – den wollen wir nicht
     try:
         w, h = WINDOW_SIZE
-        win = webview.create_window(title, url, width=w, height=h, min_size=(720, 520), on_top=on_top)
+        win = webview.create_window(title, url, width=w, height=h, min_size=(760, 600), on_top=on_top)
         if on_ready:
             on_ready(win)
         base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")

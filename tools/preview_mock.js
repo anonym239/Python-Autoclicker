@@ -139,6 +139,7 @@ window.AC_MOCK = (() => {
       if (b.general) Object.assign(cfg.general, b.general);
     } else if (name === "preset") {
       if (!PRESETS[b.id]) fail("Unbekannter Modus");
+      if (b.id !== cfg.preset && (eng.armed || eng.countdownEnd)) stop("manual");
       cfg.preset = b.id; eng.owed = 0;
     } else if (name === "hotkeys") {
       hotkeys(b);

@@ -243,8 +243,12 @@ class App:
             self._save_soon()
             return self.state()
         if name == "preset":
-            if not self.config.select(str(body.get("id", ""))):
+            pid = str(body.get("id", ""))
+            changed = pid != self.config.data["preset"]
+            if not self.config.select(pid):
                 return {"error": "Unbekannter Modus"}
+            if changed:
+                self.engine.stop("manual")  # Modus gewechselt -> Klicker aus
             self._apply()
             self._save_soon()
             return self.state()
