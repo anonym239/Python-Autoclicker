@@ -11,7 +11,7 @@ from clicker.backend import DemoBackend
 from clicker.engine import ClickEngine, ClickSettings, SmartSettings
 from clicker.hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, analyze, auto_gui_scale,
                             best_match, item_sample, locate, mask_from_hex, merge_items, png_bytes, same_tool,
-                            shot_png, template_from_icon)
+                            shot_png, slot_photo, template_from_icon)
 
 WORLD = (90, 130, 200)
 HOTBAR = (55, 55, 55)
@@ -233,6 +233,15 @@ class RealScreenshotTests(unittest.TestCase):
         self.assertLessEqual(merged.size, axe.size)
 
 
+    def test_slot_photo_is_one_to_one(self):
+        shot = real_server_shot()
+        found = analyze(shot, 1280)
+        url = slot_photo(shot, found, 2)
+        png = base64.b64decode(url.split(",", 1)[1])
+        self.assertEqual(struct.unpack(">II", png[16:24]), (60, 60))   # 20 GUI-Pixel x 3
+        self.assertLess(len(url), 40000)
+
+
 class FallbackTests(unittest.TestCase):
     def test_tracker(self):
         t = SlotTracker()
@@ -338,6 +347,7 @@ class LearnTests(unittest.TestCase):
                 tools = app.config.tools()
                 self.assertEqual(len(tools), 1)
                 self.assertTrue(tools[0]["icon"].startswith("data:image/png;base64,"))
+                self.assertTrue(tools[0]["photo"].startswith("data:image/png;base64,"))  # Platz 1:1
                 self.assertEqual(app.notice["key"], "n_tool_saved")
                 self.assertTrue(os.path.isfile(os.path.join(tmp, "hotbar-aufnahme.png")))
 

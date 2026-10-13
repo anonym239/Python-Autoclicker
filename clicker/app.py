@@ -16,7 +16,7 @@ from .backend import create_backend
 from .config import PRESET_ORDER, PRESETS, Config, user_data_dir
 from .engine import ClickEngine
 from .hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, Template, best_match, item_sample, locate,
-                     merge_items, same_tool, shot_png, template_from_icon)
+                     merge_items, same_tool, shot_png, slot_photo, template_from_icon)
 from .keys import HotkeyMatcher
 from .server import WebServer
 from .updater import SNOOZE_SECONDS, Updater
@@ -297,7 +297,12 @@ class App:
             shot, found = None, None
             self._log(f"Aufnahme-Fehler: {e!r}")
         item = item_sample(shot, found, found["slot"]) if found else None
+        photo = ""
         if item is not None and not item.empty:
+            try:
+                photo = slot_photo(shot, found, found["slot"])
+            except Exception:
+                photo = ""
             # noch zwei Aufnahmen: was sich bewegt (animierte Hotbar, Welt dahinter), ist kein Item
             frames = [item]
             for _ in range(2):
@@ -323,7 +328,7 @@ class App:
                 return
             self.learning = False
             self.learn_error = ""
-            self.config.learn_tool(item.mask_hex(), item.icon(), same_tool(item, self._tool_templates))
+            self.config.learn_tool(item.mask_hex(), item.icon(), same_tool(item, self._tool_templates), photo)
             self._notify("n_tool_saved")
             self.backend.beep("learn_ok")
             self._apply()

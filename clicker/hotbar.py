@@ -415,6 +415,23 @@ def png_read_rgba(url: str):
         return None
 
 
+def slot_photo(shot: Shot, found: dict, slot: int, margin: int = 2) -> str:
+    """Foto des Hotbar-Platzes 1:1 wie im Spiel (mit Hintergrund des Texture Packs) –
+    nur zum Anzeigen. Bis zu 3 Bildschirmpixel pro GUI-Pixel, damit die Datei klein bleibt."""
+    s, x0, y0 = found["scale"], found["x0"], found["y0"]
+    step = max(1, s // 3)
+    left = x0 + (3 - margin + (slot - 1) * 20) * s
+    top = y0 + (3 - margin) * s
+    size = (ITEM + 2 * margin) * s
+    rows = []
+    for y in range(top + step // 2, top + size, step):
+        row = []
+        for x in range(left + step // 2, left + size, step):
+            row.append(shot.rgb(x, y) or (0, 0, 0))
+        rows.append(row)
+    return png_data_url(rows)
+
+
 def png_data_url(rows) -> str:
     """Kleines PNG (RGB oder RGBA) als data:-URL – ohne Zusatzmodule."""
     return "data:image/png;base64," + base64.b64encode(png_bytes(rows)).decode("ascii")

@@ -1,4 +1,4 @@
-**Neu in dieser Version:** Werkzeuge werden jetzt an ihrem Hell-Dunkel-Muster erkannt – getestet mit echten Aufnahmen von zwei Servern mit verschiedenen Texture Packs: Angelernt auf dem einen, erkannt auf dem anderen, egal ob Eisen, Diamant oder Netherite und egal auf welchem Platz. Animierte Hotbar-Hintergründe stören nicht mehr, und die Werkzeug-Bilder sind sauberer (mit Stiel, ohne Haltbarkeitsbalken). Bereits angelernte Werkzeuge funktionieren weiter.
+**Neu in dieser Version:** Werkzeug-Bilder werden jetzt 1:1 aus deiner Hotbar fotografiert – mit dem Hintergrund deines Texture Packs, genau wie im Spiel. Für schon angelernte Werkzeuge: einmal löschen und neu anlernen, dann erscheint das neue Foto.
 
 **Download:** `AutoClicker-Setup-….exe` herunterladen und starten.
 Wer AutoClicker schon installiert hat, bekommt das Update auch direkt in der App angezeigt.
