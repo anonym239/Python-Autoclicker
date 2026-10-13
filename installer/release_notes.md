@@ -1,4 +1,4 @@
-**Neu in dieser Version:** Werkzeug-Erkennung funktioniert jetzt auch im Vollbild (Bildschirmaufnahme wie OBS), bei Windows-Skalierung 125 %/150 % und mit Texture Packs ohne erkennbaren Auswahlrahmen (dann zählt der Platz von Tasten 1–9/Mausrad). Beim Anlernen hörst du im Spiel einen Ton: hoch = gespeichert, tief = nochmal versuchen.
+**Neu in dieser Version:** Mehrere Werkzeuge bleiben jetzt gespeichert (Spitzhacke, Axt, Schere … ersetzen sich nicht mehr gegenseitig), die durchsichtige Hotbar von Lunar Client wird sauber vom Item getrennt, und beim Anlernen zählen nur Klicks im Spiel – nicht der Klick auf „Zurück zum Spiel“ im Pause-Menü.
 
 **Download:** `AutoClicker-Setup-….exe` herunterladen und starten.
 Wer AutoClicker schon installiert hat, bekommt das Update auch direkt in der App angezeigt.

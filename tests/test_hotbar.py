@@ -1,5 +1,6 @@
 import base64
 import os
+import random
 import struct
 import tempfile
 import time
@@ -27,9 +28,19 @@ SWORD = ["..............XX", ".............XXX", "............XXX.", "..........
          "..X...XXX.......", "...X.XXX........", "....XXX.........", "...HXX..........",
          "..H..X..........", ".H..............", "H...............", "................"]
 WOOL = ["XXXXXXXXXXXXXXXX"] * 14 + ["................"] * 2
+AXE = ["......XXXX......", ".....XXXXXX.....", "....XXXXXXX.....", "....XXXXXXH.....",
+       ".....XXXXH......", "........H.......", ".......H........", "......H.........",
+       ".....H..........", "....H...........", "...H............", "..H.............",
+       ".H..............", "H...............", "................", "................"]
+SHEARS = ["..........XX....", ".........XXX....", "........XXX.....", ".......XXX....XX",
+          "......XXX....XXX", ".....XXX....XXX.", "....XXXX...XXX..", "....XX.XXXXXX...",
+          "...HHH..XXXX....", "..HHHHH.........", ".HH...HH........", ".HH...HH........",
+          "..HHHHH.........", "...HHH..........", "................", "................"]
+NETHERITE, SHEAR_RED = (75, 60, 75), (200, 40, 40)
 
 
-def fake_hotbar(width, height, selected, items=None, scale=None, frame=True):
+def fake_hotbar(width, height, selected, items=None, scale=None, frame=True, see_through=False,
+                slot_lines=False):
     """Unteren Bildschirmrand mit einer Minecraft-artigen Hotbar nachbauen (BGRA).
 
     items: {platz: (umriss, farbe)}"""
@@ -50,6 +61,19 @@ def fake_hotbar(width, height, selected, items=None, scale=None, frame=True):
     gw, gh = -(-width // s), -(-height // s)
     hx, hy = gw // 2 - 91, gh - 22
     rect(hx, hy, 182, 22, HOTBAR)
+    if see_through:  # durchsichtige Hotbar (Lunar Client): Gras schimmert unruhig durch
+        rnd = random.Random(selected)
+        for gy in range(1, 21):
+            for gx in range(1, 181):
+                v = rnd.randint(-12, 12)
+                rect(hx + gx, hy + gy, 1, 1, (78 + v, 86 + v, 34 + v // 2))
+    if slot_lines:  # hellere Linie direkt um jedes Item-Feld (wie bei manchen Hotbars)
+        for i in range(9):
+            ix = hx + 3 + i * 20
+            rect(ix - 1, hy + 2, 18, 1, (120, 120, 120))
+            rect(ix - 1, hy + 19, 18, 1, (120, 120, 120))
+            rect(ix - 1, hy + 2, 1, 18, (120, 120, 120))
+            rect(ix + 16, hy + 2, 1, 18, (120, 120, 120))
     fx = hx - 1 + (selected - 1) * 20
     if frame:
         rect(fx, hy - 1, 24, 2, FRAME)          # oben
@@ -284,6 +308,43 @@ class LearnTests(unittest.TestCase):
             self.assertIn("learn_ok", app.backend.beeps)
             with open(os.path.join(tmp, "hotbar-log.txt"), encoding="utf-8") as f:
                 self.assertIn("Rahmen NICHT erkannt", f.read())
+
+    def test_learn_three_tools_on_see_through_hotbar(self):
+        """Lunar Client: durchsichtige Hotbar, drei Werkzeuge nacheinander -> drei Eintraege."""
+        with tempfile.TemporaryDirectory() as tmp:
+            app = App(tmp, "web", demo=True, keep_alive=True)
+            app.start()
+            screen = app.backend
+            items = {5: (PICKAXE, NETHERITE), 6: (AXE, NETHERITE), 7: (SHEARS, SHEAR_RED), 8: (WOOL, IRON)}
+            try:
+                for slot in (5, 6, 7):
+                    app.tools_action({"op": "learn"})
+                    # "Zurueck zum Spiel" im Pause-Menue (Zeiger sichtbar) zaehlt nicht
+                    screen.cursor = True
+                    screen.screen = fake_hotbar(1280, 720, slot, items, see_through=True, slot_lines=True)
+                    app._on_mouse("left", True)
+                    app._on_mouse("left", False)
+                    time.sleep(0.15)
+                    self.assertTrue(app.learning)
+                    screen.cursor = False
+                    app._on_mouse("left", True)
+                    app._on_mouse("left", False)
+                    self.assertTrue(self.wait_for(lambda: not app.learning))
+                tools = app.config.tools()
+                self.assertEqual(len(tools), 3)
+                for t in tools:  # Hintergrund ist durchsichtig, nicht mitgezaehlt
+                    self.assertLess(bin(int(t["mask"], 16)).count("1"), 80)
+
+                app.handle("preset", {"id": "pvp"})
+                app.engine.start()
+                for slot, want in ((5, 0), (6, 1), (7, 2), (8, -1), (2, -1)):
+                    screen.screen = fake_hotbar(1280, 720, slot, items, see_through=True, slot_lines=True)
+                    app._on_mouse("left", True)
+                    self.assertTrue(self.wait_for(lambda: app.tool_index == want and app.engine.tool == (want >= 0)),
+                                    (slot, app.tool_index))
+                    app._on_mouse("left", False)
+            finally:
+                app.shutdown()
 
     def test_click_in_own_window_does_not_learn(self):
         with tempfile.TemporaryDirectory() as tmp:

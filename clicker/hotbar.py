@@ -28,7 +28,8 @@ MAX_SCALE = 8
 ITEM = 16                     # Items sind 16x16 GUI-Pixel
 MATCH_ROWS = 12               # untere Zeilen nicht vergleichen (Haltbarkeitsbalken, Anzahl)
 MIN_ITEM_PIXELS = 10          # weniger = leerer Platz
-MATCH_IOU = 0.72              # so aehnlich muss der Umriss sein
+MATCH_IOU = 0.72              # so aehnlich muss der Umriss sein (= gleiches Werkzeug in der Hand)
+SAME_IOU = 0.9                # beim Anlernen: so aehnlich = dasselbe Werkzeug nochmal (ersetzen)
 
 
 class SlotTracker:
@@ -194,8 +195,12 @@ class Item:
 
 
 def item_sample(shot: Shot, found: dict, slot: int) -> Item:
-    """Item im Platz ausschneiden. Der Hintergrund ist der Rand direkt um das Item
-    (dort liegt nie ein Item-Pixel); alles, was sich davon abhebt, gehoert zum Item."""
+    """Item im Platz ausschneiden und vom Hintergrund trennen.
+
+    Hintergrund = die aeusseren Pixel des Item-Felds, die ein Werkzeug nur selten
+    fuellt. Bei durchsichtiger Hotbar (z. B. Lunar Client) schimmert die Welt durch –
+    dann ist der Rand unruhiger und die Schwelle entsprechend hoeher, damit der
+    Hintergrund nicht zum Item gezaehlt wird."""
     s, x0, y0 = found["scale"], found["x0"], found["y0"]
     left = x0 + (3 + (slot - 1) * 20) * s
     top = y0 + 3 * s
@@ -204,11 +209,15 @@ def item_sample(shot: Shot, found: dict, slot: int) -> Item:
     def at(gx, gy):
         return shot.rgb(left + gx * s + h, top + gy * s + h) or (0, 0, 0)
 
-    ring = [at(i, -1) for i in range(-1, 17)] + [at(i, 16) for i in range(-1, 17)]
-    ring += [at(-1, i) for i in range(ITEM)] + [at(16, i) for i in range(ITEM)]
-    bg = tuple(sorted(c[k] for c in ring)[len(ring) // 2] for k in range(3))
     rows = [[at(gx, gy) for gx in range(ITEM)] for gy in range(ITEM)]
-    mask = [_dist(rows[y][x], bg) > 45 for y in range(ITEM) for x in range(ITEM)]
+    # Rand-Streifen (2 Pixel breit) innerhalb des Item-Felds: dort ist fast immer Hintergrund.
+    # (Der Ring ausserhalb ist bei manchen Hotbars eine hellere Trennlinie – nicht nehmen.)
+    edge = [rows[y][x] for y in range(ITEM) for x in range(ITEM)
+            if x < 2 or x > 13 or y < 2 or y > 13]
+    bg = tuple(sorted(c[k] for c in edge)[len(edge) // 2] for k in range(3))
+    spread = sorted(_dist(c, bg) for c in edge)[len(edge) * 2 // 5]
+    limit = max(36, 2 * spread + 18)
+    mask = [_dist(rows[y][x], bg) > limit for y in range(ITEM) for x in range(ITEM)]
     return Item(rows, mask, bg)
 
 
@@ -228,7 +237,7 @@ def similarity(a, b) -> float:
     return both / either if either else 0.0
 
 
-def best_match(item: Item, masks) -> int:
+def best_match(item: Item, masks, needed: float = MATCH_IOU) -> int:
     """Index des passenden angelernten Werkzeugs oder -1."""
     if item.empty:
         return -1
@@ -239,7 +248,7 @@ def best_match(item: Item, masks) -> int:
         sim = similarity(item.mask, m)
         if sim > best:
             best, best_i = sim, i
-    return best_i if best >= MATCH_IOU else -1
+    return best_i if best >= needed else -1
 
 
 def png_data_url(rows) -> str:
