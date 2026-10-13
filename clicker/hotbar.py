@@ -31,6 +31,40 @@ MIN_ITEM_PIXELS = 10          # weniger = leerer Platz
 MATCH_IOU = 0.72              # so aehnlich muss der Umriss sein
 
 
+class SlotTracker:
+    """Gewaehlter Hotbar-Platz 1–9 aus Tasten und Mausrad (falls der Auswahlrahmen
+    auf dem Bild nicht erkannt wird, z. B. bei manchen Texture Packs).
+    Bei offenem Chat / Inventar zaehlen Zifferntasten und Mausrad nicht."""
+
+    def __init__(self):
+        self.slot = 1
+        self._screen = ""  # "" | "chat" | "inv"
+
+    def key(self, name: str) -> None:
+        if self._screen == "chat":
+            if name in ("enter", "esc"):
+                self._screen = ""
+        elif self._screen == "inv":
+            if name in ("e", "esc"):
+                self._screen = ""
+        elif name in ("t", "slash"):
+            self._screen = "chat"
+        elif name == "e":
+            self._screen = "inv"
+        elif len(name) == 1 and name in "123456789":
+            self.slot = int(name)
+
+    def wheel(self, up: bool) -> None:
+        """Mausrad: hoch = Platz nach links, runter = nach rechts (wie in Minecraft)."""
+        if not self._screen:
+            self.slot = (self.slot - 1 + (-1 if up else 1)) % SLOTS + 1
+
+    def sync(self, slot: int) -> None:
+        """Platz wurde auf dem Bild erkannt (dann ist auch kein Inventar offen)."""
+        self._screen = ""
+        self.slot = slot
+
+
 def auto_gui_scale(width: int, height: int) -> int:
     """GUI-Groesse "Automatisch" wie in Minecraft."""
     scale = 1
@@ -114,6 +148,19 @@ def analyze(shot: Shot, width: int):
         if top >= 130 and conf >= 35 and (best is None or conf > best["confidence"]):
             best = {"scale": s, "slot": order[0] + 1, "confidence": round(conf, 1), "x0": x0, "y0": y0}
     return best
+
+
+def locate(shot: Shot, width: int, guess_slot: int):
+    """Hotbar + gewaehlter Platz. Mit Auswahlrahmen -> sicher ("sure": True);
+    sonst Annahme: GUI-Groesse "Automatisch" und der Platz aus Tasten/Mausrad."""
+    found = analyze(shot, width)
+    if found:
+        return dict(found, sure=True)
+    s = auto_gui_scale(width, shot.client_h)
+    if HOTBAR_W * s > width or CAPTURE_GUI_H * s > shot.h:
+        return None
+    x0, y0 = _layout(width, shot.client_h, s)
+    return {"scale": s, "slot": guess_slot, "confidence": 0.0, "x0": x0, "y0": y0, "sure": False}
 
 
 class Item:
