@@ -394,6 +394,21 @@ class Config:
                 tools.append(entry)
             self.data["tools"] = sanitize_tools(tools)[-MAX_TOOLS:]
 
+    def import_tools(self, items) -> int:
+        """Werkzeuge aus einer Datei uebernehmen (schon vorhandene werden uebersprungen).
+        -> Anzahl neu hinzugekommener."""
+        new = sanitize_tools(items if isinstance(items, list) else [])
+        with self._lock:
+            tools = self.data["tools"]
+            have = {t["mask"] for t in tools}
+            added = 0
+            for t in new:
+                if t["mask"] not in have and len(tools) < MAX_TOOLS:
+                    tools.append(t)
+                    have.add(t["mask"])
+                    added += 1
+            return added
+
     def delete_tool(self, index: int) -> bool:
         with self._lock:
             if 0 <= index < len(self.data["tools"]):
