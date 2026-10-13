@@ -108,7 +108,7 @@
   const delayText = (v) => v > 0 ? t("seconds_short", { n: v }) : t("off");
 
   // ─── Zustand ────────────────────────────────────────────
-  let rev = -1, C = null, INFO = null, E = null, recording = null;
+  let rev = -1, C = null, INFO = null, E = null, recording = null, learning = false, slot = 1;
   let lastNotice = 0, fails = 0, tourShown = false;
   const edited = new Map();
   const markEdit = (el) => edited.set(el.id, Date.now());
@@ -180,6 +180,7 @@
     $("#version").textContent = t("version", { v: INFO.version }) + (INFO.backend === "demo" ? " · Demo" : "");
 
     renderHotkeys();
+    renderTools();
     if (!tourShown && !g.tutorial_done) { tourShown = true; openTour(); }
   }
 
@@ -240,6 +241,48 @@
     add.textContent = recording === "new" ? t("hk_add_rec") : t("hk_add");
   }
 
+  // Werkzeuge (PvP / Boost): angelernte Hotbar-Plaetze mit Item-Bild
+  const PICKAXE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.8 3.2c2.9-.4 5.3.3 6.6 1.4-2.2-.5-4.6-.3-6.5.4l1.5 1.5-1.4 1.4-1.4-1.4-9.9 9.9 1.4 1.4-1.4 1.4-2.8-2.8 1.4-1.4 1.4 1.4 9.9-9.9L12.2 4c.8-.4 1.7-.7 2.6-.8zM19 7.5c.7 1.9.9 4.3.4 6.5-1.1-1.3-1.8-3.7-1.4-6.6l1 .1z"/></svg>';
+  function renderTools() {
+    if (!C) return;
+    const show = C.mode === "hold_mouse" || C.mode === "boost";
+    $("#row-tools").hidden = !show;
+    const list = $("#tools-list");
+    list.textContent = "";
+    if (!C.tools.length) {
+      const none = document.createElement("span");
+      none.className = "muted small";
+      none.textContent = t("tools_empty");
+      list.appendChild(none);
+    }
+    C.tools.forEach((tool) => {
+      const chip = document.createElement("span");
+      chip.className = "tool-chip" + (tool.slot === slot ? " on" : "");
+      chip.title = t("tool_slot", { n: tool.slot });
+      const icon = document.createElement("span");
+      icon.className = "tool-icon";
+      if (tool.icon) {
+        const img = document.createElement("img");
+        img.src = tool.icon; img.alt = "";
+        icon.appendChild(img);
+      } else {
+        icon.innerHTML = PICKAXE;
+      }
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "icon-btn";
+      del.textContent = "✕";
+      del.setAttribute("aria-label", t("tool_delete"));
+      del.addEventListener("click", () => send("tools", { op: "delete", slot: tool.slot }));
+      chip.append(icon, document.createTextNode(String(tool.slot)), del);
+      list.appendChild(chip);
+    });
+    const btn = $("#tools-learn");
+    btn.classList.toggle("rec", learning);
+    btn.textContent = learning ? t("cancel") : t("tool_learn");
+  }
+  $("#tools-learn").addEventListener("click", () => send("tools", { op: learning ? "cancel" : "learn" }));
+
   // ─── Anzeigen: Live ─────────────────────────────────────
   function renderLive() {
     if (!E || !C) return;
@@ -265,6 +308,7 @@
       hint = t("hint_countdown");
     } else if (E.armed) {
       if (st === "paused") hint = t(E.reason === "self" ? "hint_self" : "hint_window");
+      else if (E.reason === "tool") hint = t("hint_tool");
       else if (mode === "hold_mouse") hint = t(st === "clicking" ? "hint_pvp_clicking" : "hint_pvp_" + side);
       else if (mode === "boost") hint = t(st === "clicking" ? "hint_boost" : "hint_boost_ready");
       else if (E.holding || (C.preset === "afk" && C.current.action === "hold")) hint = t("hint_hold_" + side);
@@ -273,7 +317,7 @@
       hint = main ? t("hint_idle", { key: keyLabel(main.key) }) : t("hint_nokey");
       if (E.stop_reason === "limit") hint = t("hint_limit");
     }
-    $("#hint").textContent = recording !== null ? t("hint_record") : hint;
+    $("#hint").textContent = recording !== null ? t("hint_record") : learning ? t("hint_learn") : hint;
     $("#hint").classList.toggle("attn", recording === null && st === "paused");
   }
 
@@ -306,8 +350,12 @@
     if (st.config) { C = st.config; INFO = st.info; rev = st.rev; }
     E = st.engine;
     recording = st.recording === undefined ? null : st.recording;
+    const tools = (st.learning || false) + ":" + (st.slot || 1);
+    const toolsChanged = tools !== learning + ":" + slot;
+    learning = !!st.learning; slot = st.slot || 1;
     if (st.config) renderConfig();
     else if (wasRecording !== recording && C) renderHotkeys();
+    if (!st.config && toolsChanged) renderTools();
     renderUpdate(st.update || null);
     if (st.notice && st.notice.id !== lastNotice) { lastNotice = st.notice.id; toast(t(st.notice.key || st.notice.text || "")); }
     renderLive();

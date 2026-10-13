@@ -20,7 +20,7 @@ from clicker import VERSION  # noqa: E402
 from clicker.config import PRESETS, Config  # noqa: E402
 
 WEB = os.path.join(ROOT, "web")
-WIN_W, WIN_H = 824, 561  # Innengroesse des Programmfensters
+WIN_W, WIN_H = 844, 641  # Innengroesse des Programmfensters
 
 PREVIEW_CSS = """
 /* ─── Vorschau-Rahmen ─── */

@@ -6,8 +6,20 @@ window.AC_MOCK = (() => {
   const PRESETS = __PRESETS__;
 
   const cfg = JSON.parse(JSON.stringify(CONFIG));
-  let update = { version: "6.6", status: "available", progress: 0, error: "", can_install: true };
+  let update = { version: "6.7", status: "available", progress: 0, error: "", can_install: true };
   let rev = 1, recording = null, recordUntil = 0, notice = null, noticeId = 0;
+  let learning = false, slot = 1, learnPress = null;
+  cfg.tools = cfg.tools || [];
+  const isTool = () => (mode() === "hold_mouse" || mode() === "boost") && cfg.tools.some((x) => x.slot === slot);
+  // Vorschau: kleine Pixel-Spitzhacke als "abfotografiertes" Item
+  function demoIcon() {
+    const c = document.createElement("canvas"); c.width = c.height = 16;
+    const g = c.getContext("2d");
+    g.fillStyle = "#6b6b6b"; g.fillRect(0, 0, 16, 16);
+    g.fillStyle = "#6b4a2b"; for (let i = 3; i < 14; i++) g.fillRect(i, 15 - i, 2, 2);
+    g.fillStyle = "#4fd1c5"; [[3,2],[4,1],[5,1],[6,1],[7,1],[8,1],[9,2],[10,3],[11,4],[12,5],[13,6],[14,7],[14,8],[13,9]].forEach(([x, y]) => g.fillRect(x, y, 1, 2));
+    return c.toDataURL("image/png");
+  }
   const now = () => performance.now() / 1000;
   const eng = {
     armed: false, runStart: null, session: 0, lifetime: 0, best: 0, stopReason: "",
@@ -36,6 +48,7 @@ window.AC_MOCK = (() => {
     const m = mode(), held = eng.mouse.has(cur().button);
     if (eng.countdownEnd) return ["countdown", ""];
     if (!eng.armed) return ["idle", ""];
+    if (isTool()) return ["ready", "tool"];
     if (m === "hold_mouse" && !held) return ["ready", "mouse"];
     if (m === "boost" && (!eng.owed || held)) return ["ready", "boost"];
     return ["clicking", ""];
@@ -80,6 +93,8 @@ window.AC_MOCK = (() => {
         best_cps: Math.round(eng.best * 10) / 10,
       },
       recording,
+      learning,
+      slot,
       update,
       notice: notice && Date.now() - notice.at < 6000 ? notice : null,
     };
@@ -89,7 +104,8 @@ window.AC_MOCK = (() => {
       out.config = {
         preset: cfg.preset,
         presets: Object.keys(PRESETS).map((id) => ({ id, name: PRESETS[id].name, mode: PRESETS[id].mode })),
-        mode: mode(), current: { ...cur() }, hotkeys: cfg.hotkeys.map((h) => ({ ...h })), general,
+        mode: mode(), current: { ...cur() }, hotkeys: cfg.hotkeys.map((h) => ({ ...h })),
+        tools: cfg.tools.map((x) => ({ ...x })), general,
       };
       out.info = { name: "AutoClicker", version: "__VERSION__", backend: "demo", hooks_ok: false };
     }
@@ -143,6 +159,10 @@ window.AC_MOCK = (() => {
       cfg.preset = b.id; eng.owed = 0;
     } else if (name === "hotkeys") {
       hotkeys(b);
+    } else if (name === "tools") {
+      if (b.op === "learn") { stop("manual"); learning = true; }
+      else if (b.op === "cancel") learning = false;
+      else if (b.op === "delete") cfg.tools = cfg.tools.filter((x) => x.slot !== b.slot);
     } else if (name === "update") {
       if (b.op === "later") { update = null; notify("Erinnerung in 5 Tagen"); }
       else if (b.op === "skip") update = null;
@@ -163,6 +183,7 @@ window.AC_MOCK = (() => {
   const keyName = (e) => (/^F\d{1,2}$/.test(e.code) ? e.code.toLowerCase() : /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : null);
   window.addEventListener("keydown", (e) => {
     if (recording !== null || typing(document.activeElement) || e.repeat) return;
+    if (/^Digit[1-9]$/.test(e.code)) { slot = +e.code.slice(5); return; }
     const hk = cfg.hotkeys.find((h) => h.key === keyName(e));
     if (!hk) return;
     e.preventDefault();
@@ -173,12 +194,18 @@ window.AC_MOCK = (() => {
   window.addEventListener("pointerdown", (e) => {
     const b = BTN[e.button];
     if (!b || interactive(e.target)) return;
+    if (learning && b === "left") learnPress = now();
     if (eng.armed && b === cur().button && mode() !== "toggle") eng.session++;
     eng.mouse.add(b);
   });
   window.addEventListener("pointerup", (e) => {
     const b = BTN[e.button] || "left";
     const was = eng.mouse.delete(b);
+    if (learning && learnPress !== null && now() - learnPress >= 0.35) {
+      cfg.tools = cfg.tools.filter((x) => x.slot !== slot).concat([{ slot, icon: demoIcon() }]).sort((a, c) => a.slot - c.slot);
+      learning = false; rev++; notify("n_tool_saved");
+    }
+    learnPress = null;
     if (was && eng.armed && mode() === "boost" && b === cur().button) {
       eng.owed = Math.min(6, eng.owed + cur().boost - 1);
       eng.due = now() + 0.012 + Math.random() * 0.012;

@@ -14,6 +14,7 @@ class DemoBackend:
     has_global_input = False
 
     def __init__(self):
+        self.on_input = None
         self.clicks = 0
         self.down: set[str] = set()
         self.foreground = "Minecraft 1.21.4 (Demo)"
@@ -33,6 +34,9 @@ class DemoBackend:
 
     def foreground_title(self) -> str:
         return self.foreground
+
+    def grab_bottom(self, rows: int):
+        return None  # kein Bildschirm im Demo-Modus
 
     def set_timer_resolution(self, high: bool) -> None:
         self.timer_high = high

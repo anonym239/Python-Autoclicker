@@ -14,9 +14,10 @@ from .keys import normalize_hotkey
 CONFIG_NAME = "clicker_settings.json"
 OLD_CONFIG_NAMES = ("ac_settings.json", "autoclicker_settings.json")  # v5
 THEMES = ("system", "light", "dark")
-LANGUAGES = ("auto", "de", "en", "es", "fr", "tr", "pl")  # muss zu web/i18n.js passen
+LANGUAGES = ("auto", "de", "en", "es", "fr", "it", "pt", "nl", "sv", "nb", "da", "fi", "pl", "cs", "sk", "hu", "ro", "el", "bg", "ru", "uk", "tr", "ja", "zh", "ko")  # muss zu web/i18n.js passen
 HOTKEY_ACTIONS = ("toggle", "on", "off")  # An/Aus, nur an, nur aus
 MAX_HOTKEYS = 8
+MAX_ICON_LEN = 4000  # data:-URL eines 16x16-Bildes
 MAX_CPS = 1000.0
 DEFAULT_PORT = 8765
 VARIATION = 0.12  # +-12 % bei "zufaellige Abweichung"
@@ -36,6 +37,8 @@ DEFAULTS = {
     "preset": "standard",
     "presets": {},
     "hotkeys": [{"key": "f6", "action": "toggle"}],
+    # Angelernte Werkzeuge (PvP/Boost): Hotbar-Platz 1–9 + Bild des Items
+    "tools": [],
     "general": {
         "vary": False,
         "auto_stop": 0.0,
@@ -108,6 +111,22 @@ def sanitize_preset(raw: dict, base: dict) -> dict:
 def _migrate_hotkey(text) -> str:
     t = str(text or "").strip().lower()
     return normalize_hotkey(KEY_ALIASES.get(t, t))
+
+
+def sanitize_tools(items) -> list:
+    out, seen = [], set()
+    for t in items:
+        if not isinstance(t, dict):
+            continue
+        slot = t.get("slot")
+        if not isinstance(slot, int) or isinstance(slot, bool) or not 1 <= slot <= 9 or slot in seen:
+            continue
+        icon = t.get("icon")
+        if not (isinstance(icon, str) and icon.startswith("data:image/png;base64,") and len(icon) <= MAX_ICON_LEN):
+            icon = ""
+        seen.add(slot)
+        out.append({"slot": slot, "icon": icon})
+    return sorted(out, key=lambda t: t["slot"])
 
 
 def sanitize_hotkeys(raw) -> list:
@@ -208,6 +227,8 @@ class Config:
                 d["presets"][pid] = sanitize_preset(presets[pid], d["presets"][pid])
         if raw.get("preset") in PRESETS:
             d["preset"] = raw["preset"]
+        if isinstance(raw.get("tools"), list):
+            d["tools"] = sanitize_tools(raw["tools"])
         if isinstance(raw.get("hotkeys"), list):
             d["hotkeys"] = sanitize_hotkeys(raw["hotkeys"])
         elif "hotkey" in raw:  # Version 6.0.0 hatte nur einen Hotkey
@@ -341,6 +362,28 @@ class Config:
                 hks.pop(index)
                 return True
         return False
+
+    # ─── Werkzeuge ───────────────────────────────────────
+    def tools(self) -> list:
+        with self._lock:
+            return [dict(t) for t in self.data["tools"]]
+
+    def tool_slots(self) -> frozenset:
+        with self._lock:
+            return frozenset(t["slot"] for t in self.data["tools"])
+
+    def learn_tool(self, slot: int, icon: str) -> None:
+        """Platz als Werkzeug speichern (gleicher Platz -> Bild ersetzen)."""
+        with self._lock:
+            tools = [t for t in self.data["tools"] if t["slot"] != slot]
+            tools.append({"slot": slot, "icon": icon})
+            self.data["tools"] = sanitize_tools(tools)
+
+    def delete_tool(self, slot: int) -> bool:
+        with self._lock:
+            before = len(self.data["tools"])
+            self.data["tools"] = [t for t in self.data["tools"] if t["slot"] != slot]
+            return len(self.data["tools"]) != before
 
     def new_token(self) -> str:
         with self._lock:
