@@ -50,6 +50,7 @@ class App:
         self.rev = 1                          # Konfig-Revision fuer die Oberflaeche
         self.recording = None                 # None | NEW | Index des Hotkeys
         self.learning = False                 # "Werkzeug anlernen" laeuft
+        self.stop_key = ""                    # Hotkey, mit dem zuletzt geschaltet wurde
         self.learn_error = ""                 # letzter Fehlschlag beim Anlernen (Textschluessel)
         self._learn_deadline = 0.0
         self._learn_press = False
@@ -114,6 +115,7 @@ class App:
             now = time.monotonic()
             if self.learning and now > self._learn_deadline:
                 self.learning = False
+                self.engine.suspend(False)  # Anlernen vorbei -> Klicker laeuft weiter
                 self._apply()
             if self.recording is not None and now > self._record_deadline:
                 self.matcher.cancel_recording()
@@ -187,12 +189,13 @@ class App:
             action = hks[int(slot)]["action"]
         except (ValueError, IndexError):
             return
+        self.stop_key = hks[int(slot)]["key"]  # damit die App zeigen kann, womit ausgeschaltet wurde
         if action == "on":
             self.engine.start()
         elif action == "off":
-            self.engine.stop("manual")
+            self.engine.stop("hotkey")
         else:
-            self.engine.toggle()
+            self.engine.toggle("hotkey")
 
     def _on_mouse(self, button: str, down: bool) -> None:
         if self.learning and button == "left":
@@ -202,6 +205,10 @@ class App:
             if down:
                 self.engine.begin_tool_check()  # erst schauen, was in der Hand ist
                 self._tool_kick.set()
+            else:
+                self.engine.set_mouse_held(button, down)
+                self.engine.set_tool(False)     # nie im Zustand "Werkzeug" haengen bleiben
+                return
         self.engine.set_mouse_held(button, down)
 
     # ─── Werkzeuge (Hotbar) ─────────────────────────────
@@ -264,14 +271,19 @@ class App:
     def _tool_loop(self) -> None:
         """Solange die Maustaste gedrueckt ist, regelmaessig nachschauen (Platz gewechselt?)."""
         while not self.quit_event.is_set():
-            if not self._tool_kick.wait(0.5):
-                continue
-            self._tool_kick.clear()
-            self._check_tool()
-            while self._tool_btn_down and not self.quit_event.is_set():
-                if self._tool_kick.wait(TOOL_RECHECK):
-                    break
+            try:
+                if not self._tool_kick.wait(0.5):
+                    continue
+                self._tool_kick.clear()
                 self._check_tool()
+                while self._tool_btn_down and not self.quit_event.is_set():
+                    if self._tool_kick.wait(TOOL_RECHECK):
+                        break
+                    self._check_tool()
+            except Exception as e:  # die Pruefung darf nie dauerhaft ausfallen
+                self.engine.set_tool(False)
+                self._log(f"Werkzeug-Pruefung: {e!r}")
+                time.sleep(0.2)
 
     def _learn_mouse(self, down: bool) -> None:
         # Klick im Spiel (Druecken UND Loslassen dort, nicht im Pause-Menue) – im Kreativmodus
@@ -327,6 +339,7 @@ class App:
                 self.backend.beep("learn_fail")
                 return
             self.learning = False
+            self.engine.suspend(False)  # Anlernen vorbei -> Klicker laeuft weiter
             self.learn_error = ""
             self.config.learn_tool(item.mask_hex(), item.icon(), same_tool(item, self._tool_templates), photo)
             self._notify("n_tool_saved")
@@ -376,7 +389,7 @@ class App:
     def tools_action(self, body: dict):
         op = body.get("op")
         if op == "learn":
-            self.engine.stop("manual")  # beim Anlernen nicht klicken
+            self.engine.suspend(True)  # beim Anlernen nicht klicken – bleibt aber an
             self.learning = True
             self.learn_error = ""
             self._learn_press = False
@@ -384,6 +397,7 @@ class App:
             self._learn_deadline = time.monotonic() + LEARN_TIMEOUT
         elif op == "cancel":
             self.learning = False
+            self.engine.suspend(False)  # Anlernen vorbei -> Klicker laeuft weiter
         elif op == "delete":
             index = body.get("index")
             if not isinstance(index, int) or not self.config.delete_tool(index):
@@ -425,6 +439,7 @@ class App:
             "engine": self.engine.status(),
             "recording": self.recording,
             "learning": self.learning,
+            "stop_key": self.stop_key,
             "learn_error": self.learn_error,
             "tool_index": self.tool_index,
             "hotbar": self.hotbar_seen,
@@ -475,7 +490,7 @@ class App:
             if not self.config.select(pid):
                 return {"error": "Unbekannter Modus"}
             if changed:
-                self.engine.stop("manual")  # Modus gewechselt -> Klicker aus
+                self.engine.stop("mode")  # Modus gewechselt -> Klicker aus
             self._apply()
             self._save_soon()
             return self.state()
@@ -522,7 +537,7 @@ class App:
             if not self.can_self_update:  # aus dem Quellcode gestartet -> Download-Seite oeffnen
                 webbrowser.open(info["page"])
                 return self.state()
-            self.engine.stop("manual")
+            self.engine.stop("update")
             self.updater.install(self._before_update, self._after_update)
         else:
             return {"error": "Unbekannte Aktion"}
@@ -539,9 +554,9 @@ class App:
 
     def action(self, do):
         if do == "toggle":
-            self.engine.toggle()
+            self.engine.toggle("button")
         elif do == "stop":
-            self.engine.stop("manual")
+            self.engine.stop("button")
         elif do == "reset_stats":
             self.engine.reset_stats()
         else:

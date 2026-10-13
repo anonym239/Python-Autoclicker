@@ -1,4 +1,4 @@
-**Neu in dieser Version:** Werkzeug-Bilder werden jetzt 1:1 aus deiner Hotbar fotografiert – mit dem Hintergrund deines Texture Packs, genau wie im Spiel. Für schon angelernte Werkzeuge: einmal löschen und neu anlernen, dann erscheint das neue Foto.
+**Neu in dieser Version:** Der Klicker bleibt an, bis du ihn selbst ausschaltest – „Werkzeug anlernen“ pausiert ihn nur noch kurz statt ihn auszuschalten. Geht er per Hotkey aus, zeigt die App jetzt an, mit welcher Taste (Tipp: „<“ liegt direkt neben Shift und wird beim Schleichen leicht mitgedrückt). Die Werkzeug-Erkennung kann außerdem nicht mehr im Zustand „Werkzeug in der Hand“ hängen bleiben.
 
 **Download:** `AutoClicker-Setup-….exe` herunterladen und starten.
 Wer AutoClicker schon installiert hat, bekommt das Update auch direkt in der App angezeigt.

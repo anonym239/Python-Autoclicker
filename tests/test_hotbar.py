@@ -329,7 +329,8 @@ class LearnTests(unittest.TestCase):
                 app.engine.start()
                 st = app.tools_action({"op": "learn"})
                 self.assertTrue(st["learning"])
-                self.assertFalse(st["engine"]["armed"])  # Anlernen schaltet den Klicker aus
+                self.assertTrue(st["engine"]["armed"])   # Anlernen schaltet NICHT aus ...
+                self.assertTrue(self.wait_for(lambda: app.engine.status()["state"] == "paused"))  # ... pausiert nur
 
                 # Hotbar nicht sichtbar -> Hinweis, Anlernen laeuft weiter
                 app._on_mouse("left", True)
@@ -349,6 +350,8 @@ class LearnTests(unittest.TestCase):
                 self.assertTrue(tools[0]["icon"].startswith("data:image/png;base64,"))
                 self.assertTrue(tools[0]["photo"].startswith("data:image/png;base64,"))  # Platz 1:1
                 self.assertEqual(app.notice["key"], "n_tool_saved")
+                self.assertTrue(app.engine.armed)          # nach dem Anlernen laeuft er einfach weiter
+                self.assertTrue(self.wait_for(lambda: app.engine.status()["state"] != "paused"))
                 self.assertTrue(os.path.isfile(os.path.join(tmp, "hotbar-aufnahme.png")))
 
                 # Gleiches Werkzeug nochmal anlernen -> ersetzt statt doppelt

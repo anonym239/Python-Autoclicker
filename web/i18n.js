@@ -9,6 +9,7 @@ window.AC_LANGS = [
 
 window.AC_I18N = {
   de: {
+    hint_off_hotkey: "Ausgeschaltet per Hotkey {key} – nochmal drücken startet wieder.",
     mode: "Modus",
     help: "Anleitung",
     settings: "Einstellungen",
@@ -157,6 +158,7 @@ window.AC_I18N = {
   },
 
   en: {
+    hint_off_hotkey: "Turned off with hotkey {key} – press it again to start.",
     mode: "Mode",
     help: "Guide",
     settings: "Settings",
@@ -305,6 +307,7 @@ window.AC_I18N = {
   },
 
   es: {
+    hint_off_hotkey: "Apagado con la tecla {key} – púlsala otra vez para empezar.",
     mode: "Modo",
     help: "Guía",
     settings: "Ajustes",
@@ -453,6 +456,7 @@ window.AC_I18N = {
   },
 
   fr: {
+    hint_off_hotkey: "Arrêté avec la touche {key} – appuie de nouveau pour démarrer.",
     mode: "Mode",
     help: "Guide",
     settings: "Paramètres",
@@ -601,6 +605,7 @@ window.AC_I18N = {
   },
 
   it: {
+    hint_off_hotkey: "Spento con il tasto {key} – premilo di nuovo per ripartire.",
     mode: "Modalità",
     help: "Guida",
     settings: "Impostazioni",
@@ -749,6 +754,7 @@ window.AC_I18N = {
   },
 
   pt: {
+    hint_off_hotkey: "Desligado pela tecla {key} – aperte de novo para começar.",
     mode: "Modo",
     help: "Guia",
     settings: "Configurações",
@@ -897,6 +903,7 @@ window.AC_I18N = {
   },
 
   nl: {
+    hint_off_hotkey: "Uitgezet met sneltoets {key} – druk nog eens om te starten.",
     mode: "Modus",
     help: "Uitleg",
     settings: "Instellingen",
@@ -1045,6 +1052,7 @@ window.AC_I18N = {
   },
 
   sv: {
+    hint_off_hotkey: "Avstängd med snabbtangent {key} – tryck igen för att starta.",
     mode: "Läge",
     help: "Guide",
     settings: "Inställningar",
@@ -1193,6 +1201,7 @@ window.AC_I18N = {
   },
 
   nb: {
+    hint_off_hotkey: "Slått av med hurtigtast {key} – trykk igjen for å starte.",
     mode: "Modus",
     help: "Guide",
     settings: "Innstillinger",
@@ -1341,6 +1350,7 @@ window.AC_I18N = {
   },
 
   da: {
+    hint_off_hotkey: "Slået fra med genvejstast {key} – tryk igen for at starte.",
     mode: "Tilstand",
     help: "Guide",
     settings: "Indstillinger",
@@ -1489,6 +1499,7 @@ window.AC_I18N = {
   },
 
   fi: {
+    hint_off_hotkey: "Pysäytetty pikanäppäimellä {key} – paina uudelleen käynnistääksesi.",
     mode: "Tila",
     help: "Ohje",
     settings: "Asetukset",
@@ -1637,6 +1648,7 @@ window.AC_I18N = {
   },
 
   pl: {
+    hint_off_hotkey: "Wyłączono klawiszem {key} – naciśnij ponownie, aby uruchomić.",
     mode: "Tryb",
     help: "Poradnik",
     settings: "Ustawienia",
@@ -1785,6 +1797,7 @@ window.AC_I18N = {
   },
 
   cs: {
+    hint_off_hotkey: "Vypnuto klávesou {key} – stiskni znovu pro spuštění.",
     mode: "Režim",
     help: "Návod",
     settings: "Nastavení",
@@ -1933,6 +1946,7 @@ window.AC_I18N = {
   },
 
   sk: {
+    hint_off_hotkey: "Vypnuté klávesom {key} – stlač znova na spustenie.",
     mode: "Režim",
     help: "Návod",
     settings: "Nastavenia",
@@ -2081,6 +2095,7 @@ window.AC_I18N = {
   },
 
   hu: {
+    hint_off_hotkey: "Kikapcsolva a(z) {key} gyorsbillentyűvel – nyomd meg újra az indításhoz.",
     mode: "Mód",
     help: "Útmutató",
     settings: "Beállítások",
@@ -2229,6 +2244,7 @@ window.AC_I18N = {
   },
 
   ro: {
+    hint_off_hotkey: "Oprit cu tasta {key} – apasă din nou ca să pornești.",
     mode: "Mod",
     help: "Ghid",
     settings: "Setări",
@@ -2377,6 +2393,7 @@ window.AC_I18N = {
   },
 
   el: {
+    hint_off_hotkey: "Απενεργοποιήθηκε με το πλήκτρο {key} – πάτησέ το ξανά για έναρξη.",
     mode: "Λειτουργία",
     help: "Οδηγός",
     settings: "Ρυθμίσεις",
@@ -2525,6 +2542,7 @@ window.AC_I18N = {
   },
 
   bg: {
+    hint_off_hotkey: "Изключено с клавиш {key} – натисни отново за старт.",
     mode: "Режим",
     help: "Ръководство",
     settings: "Настройки",
@@ -2673,6 +2691,7 @@ window.AC_I18N = {
   },
 
   ru: {
+    hint_off_hotkey: "Выключено клавишей {key} – нажми ещё раз, чтобы запустить.",
     mode: "Режим",
     help: "Инструкция",
     settings: "Настройки",
@@ -2821,6 +2840,7 @@ window.AC_I18N = {
   },
 
   uk: {
+    hint_off_hotkey: "Вимкнено клавішею {key} – натисни ще раз, щоб запустити.",
     mode: "Режим",
     help: "Інструкція",
     settings: "Налаштування",
@@ -2969,6 +2989,7 @@ window.AC_I18N = {
   },
 
   tr: {
+    hint_off_hotkey: "{key} kısayoluyla kapatıldı – başlatmak için tekrar bas.",
     mode: "Mod",
     help: "Rehber",
     settings: "Ayarlar",
@@ -3117,6 +3138,7 @@ window.AC_I18N = {
   },
 
   ja: {
+    hint_off_hotkey: "ホットキー {key} でオフになりました。もう一度押すと開始します。",
     mode: "モード",
     help: "ガイド",
     settings: "設定",
@@ -3265,6 +3287,7 @@ window.AC_I18N = {
   },
 
   zh: {
+    hint_off_hotkey: "已通过快捷键 {key} 关闭 – 再按一次即可开始。",
     mode: "模式",
     help: "指南",
     settings: "设置",
@@ -3413,6 +3436,7 @@ window.AC_I18N = {
   },
 
   ko: {
+    hint_off_hotkey: "단축키 {key}(으)로 꺼졌습니다 – 다시 누르면 시작합니다.",
     mode: "모드",
     help: "가이드",
     settings: "설정",

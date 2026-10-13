@@ -78,6 +78,7 @@ class ClickEngine:
         self._holding: str | None = None   # Taste, die gerade dauerhaft gedrueckt wird
         self._tool = False                  # Werkzeug in der Hand -> nicht klicken
         self._tool_check_until = 0.0        # kurz warten, bis die Hotbar angeschaut ist
+        self._suspended = False             # an, aber gerade angehalten (Werkzeug anlernen)
         self._state = "idle"
         self._reason = ""
         self._stop_reason = ""
@@ -120,11 +121,17 @@ class ClickEngine:
     def armed(self) -> bool:
         return self._armed
 
-    def toggle(self) -> None:
+    def toggle(self, reason: str = "manual") -> None:
         if self._armed or self._countdown_end is not None:
-            self.stop("manual")
+            self.stop(reason)
         else:
             self.start()
+
+    def suspend(self, on: bool) -> None:
+        """Kurz nicht klicken, aber AN bleiben (z. B. waehrend "Werkzeug anlernen")."""
+        with self._lock:
+            self._suspended = on
+        self._wake.set()
 
     def start(self) -> None:
         """An – sofort, oder nach dem eingestellten Countdown."""
@@ -274,6 +281,8 @@ class ClickEngine:
             return "countdown", ""
         if not self._armed:
             return "idle", ""
+        if self._suspended:
+            return "paused", "learn"
         if c.mode in ("hold_mouse", "boost"):
             if self._tool:
                 return "ready", "tool"  # Werkzeug: Maustaste normal halten, nicht klicken

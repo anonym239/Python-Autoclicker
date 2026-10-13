@@ -6,7 +6,7 @@ window.AC_MOCK = (() => {
   const PRESETS = __PRESETS__;
 
   const cfg = JSON.parse(JSON.stringify(CONFIG));
-  let update = { version: "6.13", status: "available", progress: 0, error: "", can_install: true };
+  let update = { version: "6.14", status: "available", progress: 0, error: "", can_install: true };
   let rev = 1, recording = null, recordUntil = 0, notice = null, noticeId = 0;
   let learning = false, slot = 1, learnPress = null;
   cfg.tools = cfg.tools || [];
@@ -162,7 +162,7 @@ window.AC_MOCK = (() => {
     } else if (name === "hotkeys") {
       hotkeys(b);
     } else if (name === "tools") {
-      if (b.op === "learn") { stop("manual"); learning = true; }
+      if (b.op === "learn") learning = true;  // Klicker bleibt an (pausiert nur)
       else if (b.op === "cancel") learning = false;
       else if (b.op === "delete") cfg.tools = cfg.tools.filter((x, i) => i !== b.index);
     } else if (name === "update") {
