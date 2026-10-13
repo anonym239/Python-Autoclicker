@@ -75,12 +75,26 @@ class ServerTests(unittest.TestCase):
         code, body = self.req("/api/action", {"do": "explode"})
         self.assertEqual(code, 400)
 
+    def test_stop_reasons_and_hotkey(self):
+        self.req("/api/action", {"do": "toggle"})
+        code, body = self.req("/api/action", {"do": "toggle"})
+        self.assertEqual(json.loads(body)["engine"]["stop_reason"], "button")
+        # per Hotkey an und wieder aus -> die App weiss, welcher Hotkey es war
+        self.app._on_hotkey("0", True)
+        self.assertTrue(self.app.engine.armed)
+        self.app._on_hotkey("0", True)
+        code, body = self.req("/api/state")
+        st = json.loads(body)
+        self.assertEqual(st["engine"]["stop_reason"], "hotkey")
+        self.assertEqual(st["stop_key"], self.app.config.hotkeys()[0]["key"])
+
     def test_presets_and_hotkeys(self):
         self.req("/api/action", {"do": "toggle"})
         code, body = self.req("/api/preset", {"id": "boost"})
         st = json.loads(body)
         self.assertEqual(st["config"]["mode"], "boost")
         self.assertFalse(st["engine"]["armed"])  # Moduswechsel stoppt den Klicker
+        self.assertEqual(st["engine"]["stop_reason"], "mode")
         code, body = self.req("/api/preset", {"id": "nope"})
         self.assertEqual(code, 400)
         self.req("/api/preset", {"id": "standard"})
