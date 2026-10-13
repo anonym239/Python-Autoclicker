@@ -18,7 +18,7 @@ from .engine import ClickEngine
 from .keys import HotkeyMatcher
 from .server import WebServer
 from .updater import SNOOZE_SECONDS, Updater
-from .window import open_app_window
+from .window import open_app_window, run_native_window
 
 RECORD_TIMEOUT = 15.0
 NEW = "new"  # Aufnahme-Ziel fuer einen neuen Hotkey
@@ -38,6 +38,8 @@ class App:
         self.server = WebServer(self, web_dir, snap["general"]["port"])
         self.updater = Updater(VERSION)
         self.can_self_update = bool(getattr(sys, "frozen", False)) and self.backend.name == "windows"
+        self.native_window = None             # pywebview-Fenster, wenn vorhanden
+        self.window_kind = ""                 # "native" | "browser" | ""
         self.icon_path = ""                   # assets/icon.ico (scharfes Taskleisten-Icon)
         self.keep_alive = keep_alive          # Fenster schliessen beendet NICHT (Tests/--no-window)
         self.rev = 1                          # Konfig-Revision fuer die Oberflaeche
@@ -52,7 +54,7 @@ class App:
         self.quit_event = threading.Event()
         self._shut = False
         if self.config.migrated_from:
-            self._notify("Einstellungen aus v5 übernommen")
+            self._notify("n_migrated")
 
     # ─── Eigenschaften ──────────────────────────────────
     @property
@@ -146,9 +148,10 @@ class App:
             if icon_ok and top_ok:
                 return
 
-    def _notify(self, text: str) -> None:
+    def _notify(self, key: str) -> None:
+        """key = Textschluessel aus web/i18n.js (die Oberflaeche uebersetzt ihn)."""
         self._notice_id += 1
-        self.notice = {"id": self._notice_id, "text": text, "at": time.time()}
+        self.notice = {"id": self._notice_id, "key": key, "at": time.time()}
 
     # ─── Ereignisse ─────────────────────────────────────
     def _on_hotkey(self, slot: str, down: bool) -> None:
@@ -178,7 +181,7 @@ class App:
                 if err:
                     self._notify(err)
                 else:
-                    self._notify("Hotkey gespeichert")
+                    self._notify("n_hotkey_saved")
                     self._save_soon()
             self._apply()
 
@@ -186,7 +189,7 @@ class App:
         if self.config.data["general"]["sound"]:
             self.backend.beep(event)
         if event == "limit":
-            self._notify("Auto-Stopp erreicht")
+            self._notify("n_limit")
         if event in ("stop", "limit"):
             self._store_stats()
             self._save_soon()
@@ -229,7 +232,13 @@ class App:
             general = body.get("general") or {}
             changed = self.config.update(body)
             if "general" in changed and "always_on_top" in general:
-                self.backend.set_topmost(WINDOW_TITLE, self.config.data["general"]["always_on_top"])
+                on_top = self.config.data["general"]["always_on_top"]
+                if self.native_window is not None:
+                    try:
+                        self.native_window.on_top = on_top
+                    except Exception:
+                        pass
+                self.backend.set_topmost(WINDOW_TITLE, on_top)
             self._apply()
             self._save_soon()
             return self.state()
@@ -331,7 +340,7 @@ class App:
             self._save_soon()
         elif op == "delete":
             if not self.config.delete_hotkey(index if index is not None else -1):
-                return {"error": "Hotkey nicht gefunden"}
+                return {"error": "e_not_found"}
             self._save_soon()
         else:
             return {"error": "Unbekannte Aktion"}
@@ -364,6 +373,7 @@ def main(argv=None) -> int:
     parser.add_argument("--no-window", action="store_true", help="kein Fenster öffnen (nur Server)")
     parser.add_argument("--browser", action="store_true", help="im Standardbrowser statt als App-Fenster öffnen")
     parser.add_argument("--port", type=int, help="Port für die Oberfläche (Standard 8765)")
+    parser.add_argument("--selftest", metavar="DATEI", help=argparse.SUPPRESS)  # Build-Test: Fenster öffnet?
     args = parser.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):  # Umlaute dürfen den Start nie abbrechen
         if stream is not None and hasattr(stream, "reconfigure"):
@@ -396,10 +406,29 @@ def main(argv=None) -> int:
     if app.backend.name == "windows" and not getattr(app.backend, "hooks_ok", True):
         print("WARNUNG: Globale Hotkeys konnten nicht aktiviert werden.")
 
+    if args.selftest:
+        threading.Thread(target=_selftest, args=(app, args.selftest), daemon=True).start()
+
     if not args.no_window:
-        proc = open_app_window(app.local_url() + "&client=desktop", data_dir, use_browser=args.browser)
-        if proc is not None:
-            threading.Thread(target=_watch_window, args=(app, proc), daemon=True).start()
+        url = app.local_url() + "&client=desktop"
+        native_ok = False
+        if not args.browser:
+            def ready(win):
+                app.native_window = win
+                app.window_kind = "native"
+                # Programm wird beendet (z. B. fuer ein Update) -> Fenster schliessen
+                threading.Thread(target=_close_on_quit, args=(app, win), daemon=True).start()
+            native_ok = run_native_window(url, WINDOW_TITLE, app.config.data["general"]["always_on_top"],
+                                          app.icon_path, ready)
+            if native_ok:
+                app.quit_event.set()  # Fenster geschlossen = Programm beenden
+            else:
+                app.native_window, app.window_kind = None, ""
+        if not native_ok:
+            app.window_kind = "browser"
+            proc = open_app_window(url, data_dir, use_browser=args.browser)
+            if proc is not None:
+                threading.Thread(target=_watch_window, args=(app, proc), daemon=True).start()
 
     try:
         while not app.quit_event.wait(0.5):
@@ -408,6 +437,27 @@ def main(argv=None) -> int:
         pass
     app.shutdown()
     return 0
+
+
+def _close_on_quit(app: App, win) -> None:
+    app.quit_event.wait()
+    try:
+        win.destroy()
+    except Exception:
+        pass
+
+
+def _selftest(app: App, path: str) -> None:
+    """Fuer den automatischen Build-Test: laedt die Oberflaeche im Fenster?"""
+    end = time.monotonic() + 40
+    while time.monotonic() < end and not app._last_desktop_poll:
+        time.sleep(0.2)
+    result = f"{app.window_kind or 'none'} {'ok' if app._last_desktop_poll else 'timeout'}"
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(result)
+    finally:
+        app.quit_event.set()
 
 
 def _watch_window(app: App, proc) -> None:

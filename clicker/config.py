@@ -14,6 +14,7 @@ from .keys import normalize_hotkey
 CONFIG_NAME = "clicker_settings.json"
 OLD_CONFIG_NAMES = ("ac_settings.json", "autoclicker_settings.json")  # v5
 THEMES = ("system", "light", "dark")
+LANGUAGES = ("auto", "de", "en", "es", "fr", "tr", "pl")  # muss zu web/i18n.js passen
 HOTKEY_ACTIONS = ("toggle", "on", "off")  # An/Aus, nur an, nur aus
 MAX_HOTKEYS = 8
 MAX_CPS = 1000.0
@@ -44,6 +45,7 @@ DEFAULTS = {
         "sound": True,
         "always_on_top": False,
         "theme": "system",
+        "language": "auto",           # auto = Sprache von Windows
         "token": "",
         "port": DEFAULT_PORT,
         "tutorial_done": False,
@@ -236,6 +238,8 @@ class Config:
             out["update_snooze_until"] = _num(g["update_snooze_until"], 0, 10**11, 0.0)
         if g.get("theme") in THEMES:
             out["theme"] = g["theme"]
+        if g.get("language") in LANGUAGES:
+            out["language"] = g["language"]
         if allow_private:
             tok = g.get("token")
             if isinstance(tok, str) and 8 <= len(tok) <= 64 and tok.replace("-", "").replace("_", "").isalnum():
@@ -303,23 +307,23 @@ class Config:
             return [dict(h) for h in self.data["hotkeys"]]
 
     def set_hotkey(self, index, key: str) -> str | None:
-        """index None = neuen Hotkey anlegen. -> Fehlertext oder None."""
+        """index None = neuen Hotkey anlegen. -> Fehlercode (e_…, siehe web/i18n.js) oder None."""
         key = normalize_hotkey(key)
         if not key:
-            return "Diese Taste geht leider nicht"
+            return "e_key_invalid"
         with self._lock:
             hks = self.data["hotkeys"]
             for i, h in enumerate(hks):
                 if h["key"] == key and i != index:
-                    return "Diese Taste ist schon belegt"
+                    return "e_key_taken"
             if index is None:
                 if len(hks) >= MAX_HOTKEYS:
-                    return f"Maximal {MAX_HOTKEYS} Hotkeys"
+                    return "e_max_hotkeys"
                 hks.append({"key": key, "action": "toggle"})
             elif 0 <= index < len(hks):
                 hks[index]["key"] = key
             else:
-                return "Hotkey nicht gefunden"
+                return "e_not_found"
         return None
 
     def set_hotkey_action(self, index: int, action: str) -> bool:

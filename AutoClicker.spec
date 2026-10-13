@@ -4,6 +4,8 @@
 a = Analysis(
     ["AutoClicker.pyw"],
     datas=[("web", "web"), ("assets/icon.ico", "assets")],
+    # Eigenes Programmfenster (pywebview + WebView2); fehlt pywebview, wird nur gewarnt
+    hiddenimports=["webview.platforms.winforms", "webview.platforms.edgechromium", "clr"],
     excludes=["tkinter", "_tkinter", "unittest", "pydoc_data", "test", "lib2to3"],
 )
 pyz = PYZ(a.pure)

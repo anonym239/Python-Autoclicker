@@ -16,33 +16,33 @@
       <img src="icon.svg" alt="" width="28" height="28">
       <span>AutoClicker</span>
     </div>
-    <p class="side-label">Modus</p>
-    <nav class="presets" id="presets" aria-label="Modus">
+    <p class="side-label" data-i18n="mode">Modus</p>
+    <nav class="presets" id="presets" aria-label="Modus" data-i18n-aria="mode">
       <button type="button" class="preset" data-id="standard">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v13l3.2-3.1 2.3 5.3 2.6-1.1-2.3-5.2H18L8 3z"/></svg>
-        <span><b>Standard</b><small>Hotkey an / aus</small></span>
+        <span><b data-i18n="p_standard">Standard</b><small data-i18n="p_standard_sub">Hotkey an / aus</small></span>
       </button>
       <button type="button" class="preset" data-id="pvp">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 3h-5l-8.6 8.6-1.7-1.7-1.4 1.4 2.4 2.4-3.2 3.2 2.8 2.8 3.2-3.2 2.4 2.4 1.4-1.4-1.7-1.7L20 8V3zm-2 4.2-7.9 7.9-1.2-1.2L16.8 6H18v1.2z"/></svg>
-        <span><b>Minecraft PvP</b><small>Maustaste halten</small></span>
+        <span><b data-i18n="p_pvp">Minecraft PvP</b><small data-i18n="p_pvp_sub">Maustaste halten</small></span>
       </button>
       <button type="button" class="preset" data-id="boost">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
-        <span><b>CPS-Boost</b><small>Jeder Klick doppelt</small></span>
+        <span><b data-i18n="p_boost">CPS-Boost</b><small data-i18n="p_boost_sub">Jeder Klick doppelt</small></span>
       </button>
       <button type="button" class="preset" data-id="afk">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm1-13h-2v6l5 3 1-1.7-4-2.4V7z"/></svg>
-        <span><b>AFK-Farm</b><small>Langsam für Farmen</small></span>
+        <span><b data-i18n="p_afk">AFK-Farm</b><small data-i18n="p_afk_sub">Langsam für Farmen</small></span>
       </button>
     </nav>
     <div class="side-foot">
       <button type="button" class="side-btn" id="help-btn">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm-1-4h2v2h-2v-2zm1-10a4 4 0 0 0-4 4h2a2 2 0 1 1 3.4 1.4c-.9.8-2.4 1.6-2.4 3.6h2c0-1.2.8-1.7 1.7-2.5A4 4 0 0 0 12 6z"/></svg>
-        <span>Anleitung</span>
+        <span data-i18n="help">Anleitung</span>
       </button>
       <button type="button" class="side-btn" id="settings-btn">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M10.3 2h3.4l.5 2.6c.7.2 1.3.6 1.9 1l2.5-.9 1.7 3-2 1.7a7 7 0 0 1 0 2.2l2 1.7-1.7 3-2.5-.9c-.6.4-1.2.8-1.9 1l-.5 2.6h-3.4l-.5-2.6c-.7-.2-1.3-.6-1.9-1l-2.5.9-1.7-3 2-1.7a7 7 0 0 1 0-2.2l-2-1.7 1.7-3 2.5.9c.6-.4 1.2-.8 1.9-1L10.3 2zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/></svg>
-        <span>Einstellungen</span>
+        <span data-i18n="settings">Einstellungen</span>
       </button>
     </div>
   </aside>
@@ -53,8 +53,8 @@
       <span class="update-text" id="update-text">Update verfügbar</span>
       <span class="update-btns" id="update-btns">
         <button type="button" class="btn small primary" id="update-install">Jetzt aktualisieren</button>
-        <button type="button" class="btn small ghost" id="update-later">In 5 Tagen erinnern</button>
-        <button type="button" class="icon-btn small" id="update-skip" title="Diese Version nicht mehr anzeigen" aria-label="Ausblenden">✕</button>
+        <button type="button" class="btn small ghost" id="update-later" data-i18n="upd_later">In 5 Tagen erinnern</button>
+        <button type="button" class="icon-btn small" id="update-skip" title="Diese Version nicht mehr anzeigen" aria-label="Diese Version nicht mehr anzeigen" data-i18n-title="upd_skip" data-i18n-aria="upd_skip">✕</button>
       </span>
     </div>
     <header class="head">
@@ -66,33 +66,33 @@
     </header>
 
     <section class="card live">
-      <div class="cps"><span id="cps">0</span><small>Klicks pro Sekunde</small></div>
+      <div class="cps"><span id="cps">0</span><small data-i18n="cps">Klicks pro Sekunde</small></div>
       <dl class="stats">
-        <div><dt>Klicks</dt><dd id="st-clicks">0</dd></div>
-        <div><dt>Zeit</dt><dd id="st-time">0:00</dd></div>
-        <div><dt>Rekord</dt><dd id="st-best">0</dd></div>
+        <div><dt data-i18n="st_clicks">Klicks</dt><dd id="st-clicks">0</dd></div>
+        <div><dt data-i18n="st_time">Zeit</dt><dd id="st-time">0:00</dd></div>
+        <div><dt data-i18n="st_best">Rekord</dt><dd id="st-best">0</dd></div>
       </dl>
     </section>
 
     <section class="card rows">
       <div class="row" id="row-action" hidden>
-        <span class="row-label">Aktion</span>
+        <span class="row-label" data-i18n="row_action">Aktion</span>
         <div class="row-ctl">
           <div class="seg" id="action-seg">
-            <button type="button" data-val="click">Klicken</button>
-            <button type="button" data-val="hold">Gedrückt halten</button>
+            <button type="button" data-val="click" data-i18n="act_click">Klicken</button>
+            <button type="button" data-val="hold" data-i18n="act_hold">Gedrückt halten</button>
           </div>
         </div>
       </div>
       <div class="row" id="row-speed">
-        <label for="speed">Tempo</label>
+        <label for="speed" data-i18n="row_speed">Tempo</label>
         <div class="row-ctl speed">
-          <input type="range" id="speed" min="1" max="30" step="0.1" aria-label="Klicks pro Sekunde">
-          <span class="num"><input type="number" id="speed-num" min="0.1" max="1000" step="0.1" inputmode="decimal" aria-label="Klicks pro Sekunde"><span>CPS</span></span>
+          <input type="range" id="speed" min="1" max="30" step="0.1" aria-label="Klicks pro Sekunde" data-i18n-aria="cps">
+          <span class="num"><input type="number" id="speed-num" min="0.1" max="1000" step="0.1" inputmode="decimal" aria-label="Klicks pro Sekunde" data-i18n-aria="cps"><span>CPS</span></span>
         </div>
       </div>
       <div class="row" id="row-boost" hidden>
-        <span class="row-label">Boost</span>
+        <span class="row-label" data-i18n="row_boost">Boost</span>
         <div class="row-ctl">
           <div class="seg" id="boost-seg">
             <button type="button" data-val="2">×2</button>
@@ -101,19 +101,19 @@
         </div>
       </div>
       <div class="row">
-        <span class="row-label">Maustaste</span>
+        <span class="row-label" data-i18n="row_button">Maustaste</span>
         <div class="row-ctl">
           <div class="seg" id="button-seg">
-            <button type="button" data-val="left">Links</button>
-            <button type="button" data-val="right">Rechts</button>
+            <button type="button" data-val="left" data-i18n="btn_left">Links</button>
+            <button type="button" data-val="right" data-i18n="btn_right">Rechts</button>
           </div>
         </div>
       </div>
       <div class="row">
-        <span class="row-label">Hotkeys</span>
+        <span class="row-label" data-i18n="row_hotkeys">Hotkeys</span>
         <div class="row-ctl">
           <div class="hk-summary" id="hk-summary"></div>
-          <button type="button" class="btn small" id="hotkeys-btn">Hotkeys bearbeiten</button>
+          <button type="button" class="btn small" id="hotkeys-btn" data-i18n="hk_edit">Hotkeys bearbeiten</button>
         </div>
       </div>
     </section>
@@ -129,58 +129,61 @@
 <div class="overlay" id="settings" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
     <header class="sheet-head">
-      <h2 id="settings-title">Einstellungen</h2>
-      <button type="button" class="icon-btn" data-close aria-label="Schließen">✕</button>
+      <h2 id="settings-title" data-i18n="settings">Einstellungen</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Schließen" data-i18n-aria="close">✕</button>
     </header>
     <div class="sheet-body">
-      <h3>Start</h3>
+      <h3 data-i18n="sec_start">Start</h3>
       <div class="opt column">
         <div class="opt-head">
-          <label for="o-delay">Countdown vor dem Start<small>Zeit, um nach dem Hotkey ins Spiel zu wechseln</small></label>
+          <label for="o-delay"><span data-i18n="delay">Countdown vor dem Start</span><small data-i18n="delay_sub">Zeit, um nach dem Hotkey ins Spiel zu wechseln</small></label>
           <b class="opt-value" id="o-delay-value">Aus</b>
         </div>
-        <input type="range" id="o-delay" min="0" max="10" step="1" aria-label="Countdown in Sekunden">
-        <div class="range-scale"><span>Aus</span><span>5 s</span><span>10 s</span></div>
+        <input type="range" id="o-delay" min="0" max="10" step="1" aria-label="Countdown vor dem Start" data-i18n-aria="delay">
+        <div class="range-scale"><span data-i18n="off">Aus</span><span>5 s</span><span>10 s</span></div>
       </div>
 
-      <h3>Klicken</h3>
+      <h3 data-i18n="sec_click">Klicken</h3>
       <div class="opt">
-        <label for="o-stop">Auto-Stopp nach<small>0 = aus</small></label>
-        <span class="num"><input type="number" id="o-stop" min="0" step="1" inputmode="numeric"><span>Sek.</span></span>
+        <label for="o-stop"><span data-i18n="autostop">Auto-Stopp nach</span><small data-i18n="autostop_sub">0 = aus</small></label>
+        <span class="num"><input type="number" id="o-stop" min="0" step="1" inputmode="numeric"><span data-i18n="sec_unit">Sek.</span></span>
       </div>
       <div class="opt">
-        <label for="o-vary">Tempo leicht schwanken lassen<small>Wirkt natürlicher (±12 %)</small></label>
+        <label for="o-vary"><span data-i18n="vary">Tempo leicht schwanken lassen</span><small data-i18n="vary_sub">Wirkt natürlicher (±12 %)</small></label>
         <input type="checkbox" class="switch" id="o-vary">
       </div>
 
-      <h3>Spiel &amp; Fenster</h3>
+      <h3 data-i18n="sec_game">Spiel &amp; Fenster</h3>
       <div class="opt">
-        <label for="o-lock">Nur klicken, wenn Minecraft vorne ist<small>Pausiert in anderen Fenstern</small></label>
+        <label for="o-lock"><span data-i18n="lock">Nur klicken, wenn Minecraft vorne ist</span><small data-i18n="lock_sub">Pausiert in anderen Fenstern</small></label>
         <input type="checkbox" class="switch" id="o-lock">
       </div>
       <div class="opt sub" id="o-match-row">
-        <label for="o-match">Fenstername enthält</label>
+        <label for="o-match" data-i18n="match">Fenstername enthält</label>
         <input type="text" id="o-match" class="text" autocomplete="off" spellcheck="false">
       </div>
       <div class="opt">
-        <label for="o-top">Immer im Vordergrund</label>
+        <label for="o-top" data-i18n="on_top">Immer im Vordergrund</label>
         <input type="checkbox" class="switch" id="o-top">
       </div>
       <div class="opt">
-        <label for="o-sound">Töne bei Start und Stopp</label>
+        <label for="o-sound" data-i18n="sound">Töne bei Start und Stopp</label>
         <input type="checkbox" class="switch" id="o-sound">
       </div>
 
-      <h3>Aussehen</h3>
+      <h3 data-i18n="sec_look">Aussehen</h3>
       <div class="seg wide" id="theme-seg">
-        <button type="button" data-val="system">System</button>
-        <button type="button" data-val="light">Hell</button>
-        <button type="button" data-val="dark">Dunkel</button>
+        <button type="button" data-val="system" data-i18n="th_system">System</button>
+        <button type="button" data-val="light" data-i18n="th_light">Hell</button>
+        <button type="button" data-val="dark" data-i18n="th_dark">Dunkel</button>
       </div>
 
+      <h3 data-i18n="sec_lang">Sprache</h3>
+      <select class="lang" id="o-lang" aria-label="Sprache" data-i18n-aria="sec_lang"></select>
+
       <footer class="sheet-foot">
-        <button type="button" class="link" id="reset-stats">Statistik zurücksetzen</button>
-        <span class="muted small" id="version">Version 6.0.0</span>
+        <button type="button" class="link" id="reset-stats" data-i18n="reset_stats">Statistik zurücksetzen</button>
+        <span class="muted small" id="version"></span>
       </footer>
     </div>
   </div>
@@ -190,13 +193,13 @@
 <div class="overlay center" id="hotkeys" hidden>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="hotkeys-title">
     <header class="sheet-head">
-      <h2 id="hotkeys-title">Hotkeys</h2>
-      <button type="button" class="icon-btn" data-close aria-label="Schließen">✕</button>
+      <h2 id="hotkeys-title" data-i18n="hk_title">Hotkeys</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Schließen" data-i18n-aria="close">✕</button>
     </header>
-    <p class="muted small dialog-text">Lege eigene Tasten an. Sie funktionieren überall – auch mitten im Spiel.</p>
+    <p class="muted small dialog-text" data-i18n="hk_intro">Lege eigene Tasten an. Sie funktionieren überall – auch mitten im Spiel.</p>
     <div class="hk-list" id="hk-list"></div>
     <button type="button" class="btn add" id="hk-add">+ Hotkey hinzufügen</button>
-    <p class="muted small dialog-text">Tasten, Kombinationen wie Strg+R und die Maus-Seitentasten gehen.</p>
+    <p class="muted small dialog-text" data-i18n="hk_tip">Tasten, Kombinationen wie Strg+R und die Maus-Seitentasten gehen.</p>
   </div>
 </div>
 
@@ -208,7 +211,7 @@
     <p id="tour-text"></p>
     <div class="tour-dots" id="tour-dots"><i></i><i></i><i></i></div>
     <div class="tour-btns">
-      <button type="button" class="btn ghost" id="tour-skip">Überspringen</button>
+      <button type="button" class="btn ghost" id="tour-skip" data-i18n="tour_skip">Überspringen</button>
       <button type="button" class="btn primary" id="tour-next">Weiter</button>
     </div>
   </div>
@@ -217,11 +220,12 @@
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <div class="overlay center" id="offline" hidden>
   <div class="tour">
-    <h2>Keine Verbindung</h2>
-    <p id="offline-text">Läuft der AutoClicker noch? Neuer Versuch läuft …</p>
+    <h2 data-i18n="offline_t">Keine Verbindung</h2>
+    <p id="offline-text" data-i18n="offline_p">Läuft der AutoClicker noch? Neuer Versuch läuft …</p>
   </div>
 </div>
 <!--/APP-->
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

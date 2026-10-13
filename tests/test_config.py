@@ -3,7 +3,11 @@ import os
 import tempfile
 import unittest
 
-from clicker.config import PRESET_ORDER, Config
+import re
+
+from clicker.config import LANGUAGES, PRESET_ORDER, Config
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class ConfigTests(unittest.TestCase):
@@ -68,8 +72,8 @@ class ConfigTests(unittest.TestCase):
         c.load()
         self.assertIsNone(c.set_hotkey(None, "mouse4"))
         self.assertIsNone(c.set_hotkey(None, "Ctrl+R"))
-        self.assertEqual(c.set_hotkey(None, "f6"), "Diese Taste ist schon belegt")
-        self.assertEqual(c.set_hotkey(None, "quatsch"), "Diese Taste geht leider nicht")
+        self.assertEqual(c.set_hotkey(None, "f6"), "e_key_taken")
+        self.assertEqual(c.set_hotkey(None, "quatsch"), "e_key_invalid")
         self.assertTrue(c.set_hotkey_action(1, "on"))
         self.assertFalse(c.set_hotkey_action(1, "explode"))
         self.assertIsNone(c.set_hotkey(0, "f8"))  # vorhandenen Hotkey aendern
@@ -89,6 +93,21 @@ class ConfigTests(unittest.TestCase):
         c = Config(self.dir)
         c.load()
         self.assertEqual(c.hotkeys(), [{"key": "f7", "action": "toggle"}])
+
+    def test_language(self):
+        c = Config(self.dir)
+        c.load()
+        self.assertEqual(c.data["general"]["language"], "auto")
+        c.update({"general": {"language": "fr"}})
+        self.assertEqual(c.data["general"]["language"], "fr")
+        c.update({"general": {"language": "klingonisch"}})
+        self.assertEqual(c.data["general"]["language"], "fr")
+
+    def test_languages_match_ui(self):
+        with open(os.path.join(ROOT, "web", "i18n.js"), encoding="utf-8") as f:
+            js = f.read()
+        ui = re.findall(r'\["(\w\w)", "', js.split("window.AC_I18N")[0])
+        self.assertEqual(["auto"] + ui, list(LANGUAGES))
 
     def test_sanitize(self):
         c = Config(self.dir)

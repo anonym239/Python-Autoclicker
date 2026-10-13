@@ -2,7 +2,7 @@
 ; Bauen am besten mit:  python tools/build_windows.py
 
 #ifndef AppVersion
-  #define AppVersion "6.3"
+  #define AppVersion "6.4"
 #endif
 
 [Setup]
@@ -37,6 +37,10 @@ CloseApplications=yes
 [Languages]
 Name: "de"; MessagesFile: "compiler:Languages\German.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
+Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
+Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
+Name: "tr"; MessagesFile: "compiler:Languages\Turkish.isl"
+Name: "pl"; MessagesFile: "compiler:Languages\Polish.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"

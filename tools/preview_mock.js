@@ -6,7 +6,7 @@ window.AC_MOCK = (() => {
   const PRESETS = __PRESETS__;
 
   const cfg = JSON.parse(JSON.stringify(CONFIG));
-  let update = { version: "6.3", status: "available", progress: 0, error: "", can_install: true };
+  let update = { version: "6.5", status: "available", progress: 0, error: "", can_install: true };
   let rev = 1, recording = null, recordUntil = 0, notice = null, noticeId = 0;
   const now = () => performance.now() / 1000;
   const eng = {
@@ -15,7 +15,7 @@ window.AC_MOCK = (() => {
   };
   const mode = () => PRESETS[cfg.preset].mode;
   const cur = () => cfg.presets[cfg.preset];
-  const notify = (text) => { noticeId++; notice = { id: noticeId, text, at: Date.now() }; };
+  const notify = (key) => { noticeId++; notice = { id: noticeId, key, at: Date.now() }; };
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
   function arm() { eng.armed = true; eng.countdownEnd = null; eng.runStart = now(); eng.owed = 0; eng.nextT = null; }
@@ -28,7 +28,7 @@ window.AC_MOCK = (() => {
     if (eng.armed || eng.countdownEnd) eng.stopReason = reason;
     eng.countdownEnd = null;
     eng.armed = false; eng.runStart = null; eng.owed = 0;
-    if (reason === "limit") notify("Auto-Stopp erreicht");
+    if (reason === "limit") notify("n_limit");
   }
   const toggle = () => (eng.armed || eng.countdownEnd ? stop("manual") : start());
 
@@ -105,12 +105,12 @@ window.AC_MOCK = (() => {
       const key = String(b.key || ""), target = recording;
       recording = null;
       if (!key || target === null) return;
-      if (cfg.hotkeys.some((h, i) => h.key === key && i !== target)) { notify("Diese Taste ist schon belegt"); return; }
+      if (cfg.hotkeys.some((h, i) => h.key === key && i !== target)) { notify("e_key_taken"); return; }
       if (target === "new") {
-        if (cfg.hotkeys.length >= 8) { notify("Maximal 8 Hotkeys"); return; }
+        if (cfg.hotkeys.length >= 8) { notify("e_max_hotkeys"); return; }
         cfg.hotkeys.push({ key, action: "toggle" });
       } else cfg.hotkeys[target].key = key;
-      notify("Hotkey gespeichert");
+      notify("n_hotkey_saved");
     } else if (b.op === "action") {
       if (!cfg.hotkeys[b.index]) fail("Hotkey nicht gefunden");
       cfg.hotkeys[b.index].action = b.action;

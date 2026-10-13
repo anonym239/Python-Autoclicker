@@ -294,7 +294,7 @@ class WindowsBackend:
 
         def cb(hwnd, _lp):
             if user32.IsWindowVisible(hwnd) and needle in _window_text(hwnd).lower():
-                if _class_name(hwnd).startswith("Chrome_WidgetWin"):
+                if _class_name(hwnd).startswith(("Chrome_WidgetWin", "WindowsForms10")):
                     found.append(hwnd)
             return True
 

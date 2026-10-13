@@ -49,6 +49,68 @@ def profile_dir(fallback_folder: str) -> str:
     return path
 
 
+WEBVIEW2_RUNTIME = "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+
+
+def webview2_ready() -> bool:
+    """Sind .NET 4.6.2+ und die WebView2-Runtime da? (nur Registry lesen)
+
+    Wichtig: vorher pruefen – ohne .NET stuerzt pythonnet beim Import hart ab,
+    das liesse sich nicht mehr abfangen.
+    """
+    try:
+        import winreg
+    except ImportError:
+        return False
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full") as k:
+            if int(winreg.QueryValueEx(k, "Release")[0]) < 394802:
+                return False
+    except OSError:
+        return False
+    for root, path in ((winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients"),
+                       (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\EdgeUpdate\Clients"),
+                       (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\EdgeUpdate\Clients")):
+        try:
+            with winreg.OpenKey(root, path + "\\" + WEBVIEW2_RUNTIME) as k:
+                version = str(winreg.QueryValueEx(k, "pv")[0])
+        except OSError:
+            continue
+        if version and version != "0.0.0.0":
+            return True
+    return False
+
+
+def run_native_window(url: str, title: str, on_top: bool, icon: str = "", on_ready=None) -> bool:
+    """Eigenes Programmfenster (WebView2, in Windows 10/11 eingebaut).
+
+    Im Task-Manager steht dann AutoClicker.exe mit eigenem Icon – kein Chrome/Edge.
+    Blockiert, bis das Fenster geschlossen wird. -> False, wenn es nicht geht
+    (pywebview fehlt oder WebView2 ist nicht installiert) – dann wird der
+    Browser-Weg benutzt.
+    """
+    if not webview2_ready():
+        return False
+    try:
+        import webview  # pywebview
+        from webview.platforms import winforms
+    except Exception:
+        return False
+    if getattr(winforms, "renderer", "") != "edgechromium":
+        return False  # ohne WebView2 nimmt pywebview den alten Internet Explorer – den wollen wir nicht
+    try:
+        w, h = WINDOW_SIZE
+        win = webview.create_window(title, url, width=w, height=h, min_size=(720, 520), on_top=on_top)
+        if on_ready:
+            on_ready(win)
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        webview.start(gui="edgechromium", private_mode=False, icon=icon or None,
+                      storage_path=os.path.join(base, "AutoClicker", "webview"))
+        return True
+    except Exception:
+        return False
+
+
 def open_app_window(url: str, folder: str, use_browser: bool = False):
     """-> subprocess.Popen des App-Fensters oder None (Standardbrowser/Fehler)."""
     exe = None if use_browser else find_browser()
