@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="color-scheme" content="light dark">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-256.png" type="image/png" sizes="256x256">
+<link rel="icon" href="icon.svg" type="image/svg+xml" sizes="any">
 <title>AutoClicker 6</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -62,6 +63,10 @@
         <div><dt>Zeit</dt><dd id="st-time">0:00</dd></div>
         <div><dt>Rekord</dt><dd id="st-best">0</dd></div>
       </dl>
+      <div class="banner" id="banner" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        <div><b id="banner-title">Läuft – wechsle jetzt ins Spiel!</b><span id="banner-text">In dieses Fenster wird nicht geklickt.</span></div>
+      </div>
     </section>
 
     <section class="card rows">
@@ -119,7 +124,11 @@
         <label for="o-stop">Auto-Stopp nach</label>
         <span class="num"><input type="number" id="o-stop" min="0" step="1" inputmode="numeric"><span>Sek.</span></span>
       </div>
-      <p class="muted small">0 = aus.</p>
+      <div class="opt">
+        <label for="o-delay">Countdown vor dem Start<small>Zeit, um ins Spiel zu wechseln</small></label>
+        <span class="num"><input type="number" id="o-delay" min="0" max="60" step="0.5" inputmode="decimal"><span>Sek.</span></span>
+      </div>
+      <p class="muted small">0 = aus (klickt sofort).</p>
       <div class="opt">
         <label for="o-vary">Tempo leicht schwanken lassen<small>Wirkt natürlicher (±12 %)</small></label>
         <input type="checkbox" class="switch" id="o-vary">

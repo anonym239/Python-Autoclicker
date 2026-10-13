@@ -34,6 +34,7 @@ class App:
         self.engine.on_event = self._on_engine_event
         self.matcher = HotkeyMatcher(self._on_hotkey, self._on_mouse, self._on_record)
         self.server = WebServer(self, web_dir, snap["general"]["port"])
+        self.icon_path = ""                   # assets/icon.ico (scharfes Taskleisten-Icon)
         self.keep_alive = keep_alive          # Fenster schliessen beendet NICHT (Tests/--no-window)
         self.rev = 1                          # Konfig-Revision fuer die Oberflaeche
         self.recording = None                 # None | NEW | Index des Hotkeys
@@ -120,14 +121,23 @@ class App:
         need_mouse = cfg.mode() in ("hold_mouse", "boost") or self.matcher.wants_mouse_buttons()
         self.backend.set_mouse_hook(need_mouse)
         self.rev += 1
-        if initial and cfg.data["general"]["always_on_top"]:
-            threading.Thread(target=self._topmost_retry, daemon=True).start()
+        if initial:
+            threading.Thread(target=self._window_setup, daemon=True).start()
 
-    def _topmost_retry(self) -> None:
-        for _ in range(40):  # das Fenster braucht einen Moment
+    def _window_setup(self) -> None:
+        """Sobald das Fenster da ist: scharfes Icon + ggf. immer im Vordergrund."""
+        want_icon = bool(self.icon_path) and os.path.isfile(self.icon_path)
+        icon_hits, top_done = 0, False
+        for _ in range(60):  # das Fenster braucht einen Moment
             if self.quit_event.wait(0.5):
                 return
-            if self.backend.set_topmost(WINDOW_TITLE, self.config.data["general"]["always_on_top"]):
+            if not top_done and self.config.data["general"]["always_on_top"]:
+                top_done = self.backend.set_topmost(WINDOW_TITLE, True)
+            if want_icon and self.backend.set_window_icon(WINDOW_TITLE, self.icon_path):
+                icon_hits += 1  # Edge setzt sein Icon nach dem Laden evtl. neu -> ein paar Mal wiederholen
+            icon_ok = not want_icon or icon_hits >= 6
+            top_ok = top_done or not self.config.data["general"]["always_on_top"]
+            if icon_ok and top_ok:
                 return
 
     def _notify(self, text: str) -> None:
@@ -309,6 +319,7 @@ def main(argv=None) -> int:
 
     root, web_dir, data_dir = _paths()
     app = App(data_dir, web_dir, demo=args.demo, keep_alive=args.no_window)
+    app.icon_path = os.path.join(os.path.dirname(web_dir), "assets", "icon.ico")
     if args.port:
         app.server.port = args.port
 

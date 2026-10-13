@@ -17,16 +17,23 @@ window.AC_MOCK = (() => {
   const notify = (text) => { noticeId++; notice = { id: noticeId, text, at: Date.now() }; };
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-  function start() { if (!eng.armed) { eng.armed = true; eng.runStart = now(); eng.stopReason = ""; eng.owed = 0; eng.nextT = null; } }
+  function arm() { eng.armed = true; eng.countdownEnd = null; eng.runStart = now(); eng.owed = 0; eng.nextT = null; }
+  function start() {
+    if (eng.armed || eng.countdownEnd) return;
+    eng.stopReason = "";
+    if (cfg.general.start_delay > 0) eng.countdownEnd = now() + cfg.general.start_delay; else arm();
+  }
   function stop(reason) {
-    if (eng.armed) eng.stopReason = reason;
+    if (eng.armed || eng.countdownEnd) eng.stopReason = reason;
+    eng.countdownEnd = null;
     eng.armed = false; eng.runStart = null; eng.owed = 0;
     if (reason === "limit") notify("Auto-Stopp erreicht");
   }
-  const toggle = () => (eng.armed ? stop("manual") : start());
+  const toggle = () => (eng.armed || eng.countdownEnd ? stop("manual") : start());
 
   function evaluate() {
     const m = mode(), held = eng.mouse.has(cur().button);
+    if (eng.countdownEnd) return ["countdown", ""];
     if (!eng.armed) return ["idle", ""];
     if (m === "hold_mouse" && !held) return ["ready", "mouse"];
     if (m === "boost" && (!eng.owed || held)) return ["ready", "boost"];
@@ -35,6 +42,7 @@ window.AC_MOCK = (() => {
   const rate = () => (cfg.general.vary ? cur().cps * (0.88 + Math.random() * 0.24) : cur().cps);
   function step() {
     const t = now();
+    if (eng.countdownEnd && t >= eng.countdownEnd) arm();
     if (eng.armed && cfg.general.auto_stop > 0 && t - eng.runStart >= cfg.general.auto_stop) stop("limit");
     [eng.state, eng.reason] = evaluate();
     if (eng.state !== "clicking") { eng.nextT = null; return; }
@@ -63,6 +71,7 @@ window.AC_MOCK = (() => {
       rev,
       engine: {
         state: eng.state, reason: eng.reason, stop_reason: eng.stopReason, armed: eng.armed,
+        countdown: eng.countdownEnd ? Math.max(0, eng.countdownEnd - now()) : null,
         run_time: eng.runStart !== null ? now() - eng.runStart : 0, session_clicks: eng.session,
         lifetime_clicks: eng.lifetime + eng.session, cps: Math.round(eng.cps * 10) / 10,
         best_cps: Math.round(eng.best * 10) / 10,

@@ -39,6 +39,9 @@ class DemoBackend:
     def focus_window(self, title_part: str) -> bool:
         return False
 
+    def set_window_icon(self, title_part: str, ico_path: str) -> bool:
+        return False
+
     def claim_instance(self) -> None:
         pass
 

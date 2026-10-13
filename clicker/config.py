@@ -38,6 +38,7 @@ DEFAULTS = {
     "general": {
         "vary": False,
         "auto_stop": 0.0,
+        "start_delay": 0.0,
         "window_lock": False,
         "window_match": "Minecraft, Lunar Client, Badlion, Feather, LabyMod",
         "sound": True,
@@ -220,6 +221,8 @@ class Config:
                 out[key] = _bool(g[key])
         if "auto_stop" in g:
             out["auto_stop"] = _num(g["auto_stop"], 0, 86400, out["auto_stop"])
+        if "start_delay" in g:
+            out["start_delay"] = _num(g["start_delay"], 0, 60, out["start_delay"])
         if "window_match" in g:
             text = ", ".join(x.strip() for x in str(g["window_match"]).split(",") if x.strip())
             out["window_match"] = text[:200] or DEFAULTS["general"]["window_match"]
@@ -256,7 +259,8 @@ class Config:
             lo = max(0.1, round(cps * (1 - VARIATION), 2)) if g["vary"] else cps
             hi = min(MAX_CPS, round(cps * (1 + VARIATION), 2)) if g["vary"] else cps
             return ClickSettings(button=p["button"], mode=self.mode(), cps_min=lo, cps_max=hi,
-                                 boost=p["boost"], limit_seconds=g["auto_stop"])
+                                 boost=p["boost"], limit_seconds=g["auto_stop"],
+                                 start_delay=g["start_delay"])
 
     def smart_settings(self) -> SmartSettings:
         with self._lock:

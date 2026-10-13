@@ -54,6 +54,9 @@ class ConfigTests(unittest.TestCase):
         self.assertAlmostEqual(s.cps_min, 8.8)
         self.assertAlmostEqual(s.cps_max, 11.2)
         self.assertEqual(s.limit_seconds, 30.5)
+        self.assertEqual(s.start_delay, 0)  # Standard: sofort klicken
+        c.update({"general": {"start_delay": 99}})
+        self.assertEqual(c.click_settings().start_delay, 60)
 
     def test_hotkeys(self):
         c = Config(self.dir)

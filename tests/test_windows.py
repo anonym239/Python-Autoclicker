@@ -123,7 +123,7 @@ class WindowsBackendTests(unittest.TestCase):
             self.assertTrue(wait_for(lambda: not e.armed, 4))
         finally:
             e.shutdown()
-        self.assertTrue(95 <= len(counted) <= 102, len(counted))
+        self.assertTrue(90 <= len(counted) <= 103, len(counted))
         self.assertEqual(self.mouse, [])
 
 

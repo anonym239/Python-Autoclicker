@@ -97,6 +97,10 @@ user32.ShowWindow.argtypes = [wt.HWND, ctypes.c_int]
 user32.ShowWindow.restype = wt.BOOL
 user32.SetForegroundWindow.argtypes = [wt.HWND]
 user32.SetForegroundWindow.restype = wt.BOOL
+user32.LoadImageW.argtypes = [wt.HINSTANCE, wt.LPCWSTR, wt.UINT, ctypes.c_int, ctypes.c_int, wt.UINT]
+user32.LoadImageW.restype = wt.HANDLE
+user32.SendMessageW.argtypes = [wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM]
+user32.SendMessageW.restype = LRESULT
 kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wt.BOOL, wt.LPCWSTR]
 kernel32.CreateMutexW.restype = wt.HANDLE
 kernel32.GetModuleHandleW.argtypes = [wt.LPCWSTR]
@@ -130,6 +134,7 @@ SOUNDS = {
     "start": ((880, 60), (1320, 90)),
     "stop": ((660, 60), (440, 110)),
     "limit": ((523, 70), (659, 70), (784, 120)),
+    "countdown": ((1000, 40),),
 }
 
 
@@ -286,6 +291,22 @@ class WindowsBackend:
         for hwnd in hits:
             user32.SetWindowPos(hwnd, after, 0, 0, 0, 0, flags)
         return bool(hits)
+
+    def set_window_icon(self, title_part: str, ico_path: str) -> bool:
+        """Scharfes Icon fuer Fenster + Taskleiste (Edge nimmt sonst ein hochskaliertes 16-px-Bild)."""
+        hits = self._find_windows(title_part)
+        if not hits:
+            return False
+        if not getattr(self, "_icons", None):
+            load = lambda size: user32.LoadImageW(None, ico_path, 1, size, size, 0x10)  # IMAGE_ICON, LR_LOADFROMFILE
+            self._icons = (load(64), load(16))
+        big, small = self._icons
+        if not big:
+            return False
+        for hwnd in hits:
+            user32.SendMessageW(hwnd, 0x0080, 1, big)                 # WM_SETICON, ICON_BIG
+            user32.SendMessageW(hwnd, 0x0080, 0, small or big)        # ICON_SMALL
+        return True
 
     def focus_window(self, title_part: str) -> bool:
         hits = self._find_windows(title_part)

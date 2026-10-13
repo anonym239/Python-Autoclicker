@@ -3,7 +3,7 @@
 
 a = Analysis(
     ["AutoClicker.pyw"],
-    datas=[("web", "web")],
+    datas=[("web", "web"), ("assets/icon.ico", "assets")],
     excludes=["tkinter", "_tkinter", "unittest", "pydoc_data", "test", "lib2to3"],
 )
 pyz = PYZ(a.pure)

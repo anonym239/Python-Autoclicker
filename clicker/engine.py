@@ -2,6 +2,7 @@
 
 Zustaende (fuer die Oberflaeche):
   idle      – aus
+  countdown – Start-Countdown laeuft (nur wenn in den Einstellungen eingestellt)
   ready     – an, wartet auf echte Klicks (Minecraft PvP / CPS-Boost)
   clicking  – klickt gerade
   paused    – an, aber pausiert (anderes Fenster vorne / eigenes Fenster)
@@ -38,6 +39,7 @@ class ClickSettings:
     cps_max: float = 10.0
     boost: int = 2
     limit_seconds: float = 0.0
+    start_delay: float = 0.0
 
 
 @dataclass
@@ -58,6 +60,7 @@ class ClickEngine:
         self.on_event = None  # callback(name): "start", "stop", "limit"
 
         self._armed = False
+        self._countdown_end: float | None = None
         self._run_start: float | None = None
         self._mouse_held: set[str] = set()
         self._boost_owed = 0                 # Extra-Klicks, die noch faellig sind
@@ -104,27 +107,37 @@ class ClickEngine:
         return self._armed
 
     def toggle(self) -> None:
-        if self._armed:
+        if self._armed or self._countdown_end is not None:
             self.stop("manual")
         else:
             self.start()
 
     def start(self) -> None:
-        """Sofort an – kein Countdown."""
+        """An – sofort, oder nach dem eingestellten Countdown."""
         with self._lock:
-            if self._quit or self._armed:
+            if self._quit or self._armed or self._countdown_end is not None:
                 return
-            self._armed = True
-            self._run_start = self._clock()
             self._stop_reason = ""
-            self._clear_boost()
+            if self.cfg.start_delay > 0:
+                self._countdown_end = self._clock() + self.cfg.start_delay
+                event = "countdown"
+            else:
+                self._arm()
+                event = "start"
         self._wake.set()
-        self._emit("start")
+        self._emit(event)
+
+    def _arm(self) -> None:
+        self._armed = True
+        self._countdown_end = None
+        self._run_start = self._clock()
+        self._clear_boost()
 
     def stop(self, reason: str = "manual") -> None:
         with self._lock:
-            was_on = self._armed
+            was_on = self._armed or self._countdown_end is not None
             self._armed = False
+            self._countdown_end = None
             self._run_start = None
             self._clear_boost()
             if was_on:
@@ -174,6 +187,8 @@ class ClickEngine:
                 "reason": self._reason,
                 "stop_reason": self._stop_reason,
                 "armed": self._armed,
+                "countdown": (max(0.0, self._countdown_end - now)
+                              if self._countdown_end is not None else None),
                 "run_time": round(run_time, 2),
                 "session_clicks": self.total_clicks,
                 "lifetime_clicks": self.lifetime_clicks(),
@@ -207,6 +222,8 @@ class ClickEngine:
     def _evaluate(self, now: float) -> tuple[str, str]:
         """-> (state, reason). Nur 'clicking' bedeutet: jetzt klicken."""
         c, s = self.cfg, self.smart
+        if self._countdown_end is not None:
+            return "countdown", ""
         if not self._armed:
             return "idle", ""
         if c.mode == "hold_mouse" and c.button not in self._mouse_held:
@@ -253,13 +270,19 @@ class ClickEngine:
         timer_high = False
         while not self._quit:
             now = self._clock()
+            started = False
             with self._lock:
+                if self._countdown_end is not None and now >= self._countdown_end:
+                    self._arm()
+                    started = True
                 c = self.cfg
                 limit_hit = (self._armed and c.limit_seconds > 0 and self._run_start is not None
                              and now - self._run_start >= c.limit_seconds)
                 if not limit_hit:
                     self._state, self._reason = self._evaluate(now)
                 state, cfg = self._state, self.cfg
+            if started:
+                self._emit("start")
             if limit_hit:
                 self.stop("limit")
                 continue
@@ -271,7 +294,7 @@ class ClickEngine:
 
             if state != "clicking":
                 next_t = None
-                self._wait(0.02 if state == "paused" else 0.05 if state == "ready" else 0.25)
+                self._wait(0.02 if state in ("paused", "countdown") else 0.05 if state == "ready" else 0.25)
                 continue
 
             if cfg.mode == "boost":

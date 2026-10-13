@@ -2,7 +2,7 @@
 
     python tools/make_icons.py
 
-Schreibt web/icon.svg (Fenster-Icon) und assets/icon.ico (fuer .exe und Installer). Zum Rendern wird Node.js mit
+Schreibt web/icon.svg + web/icon-256.png (Fenster-Icon) und assets/icon.ico (fuer .exe und Installer). Zum Rendern wird Node.js mit
 Playwright gebraucht (nur fuer Entwickler, nicht zum Benutzen der App).
 """
 
@@ -78,6 +78,8 @@ def main():
                 pngs[s] = f.read()
     os.makedirs(os.path.join(ROOT, "assets"), exist_ok=True)
     write_ico(os.path.join(ROOT, "assets", "icon.ico"), {s: pngs[s] for s in ICO_SIZES})
+    with open(os.path.join(ROOT, "web", "icon-256.png"), "wb") as f:  # grosses Fenster-Icon
+        f.write(pngs[256])
     print("Icons geschrieben.")
 
 

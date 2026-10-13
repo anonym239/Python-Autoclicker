@@ -27,8 +27,11 @@ Ohne Installation: `AutoClicker-…-portable.zip` entpacken und `AutoClicker.exe
 | AFK-Farm | Klickt langsam weiter (1,6 CPS = Schwert-Cooldown) |
 
 Unter **Hotkeys bearbeiten** legst du eigene Tasten an – jeweils für An/Aus, nur An oder nur Aus
-(auch Kombinationen wie Strg+R oder die Maus-Seitentasten). Weitere Optionen (Auto-Stopp,
-nur in Minecraft klicken, Hell/Dunkel) findest du unter **Einstellungen**.
+(auch Kombinationen wie Strg+R oder die Maus-Seitentasten). Weitere Optionen (Countdown vor dem Start,
+Auto-Stopp, nur in Minecraft klicken, Hell/Dunkel) findest du unter **Einstellungen**.
+
+> In das AutoClicker-Fenster selbst wird nie geklickt. Ist es vorne, zeigt es groß
+> „Läuft – wechsle jetzt ins Spiel!“ – sobald das Spiel vorne ist, geht's los.
 
 Viele Server verbieten Autoclicker – nutze ihn dort, wo es erlaubt ist.
 
@@ -40,5 +43,5 @@ Viele Server verbieten Autoclicker – nutze ihn dort, wo es erlaubt ist.
   dann `python tools/build_windows.py`
 
 **Neues Release mit .exe:** Auf GitHub unter *Releases → Draft a new release* einen Tag wie
-`v6.1.0` anlegen und veröffentlichen. Der Workflow *Windows-Build* baut dann automatisch
+`v6.2.0` anlegen und veröffentlichen. Der Workflow *Windows-Build* baut dann automatisch
 Setup und ZIP und hängt beides an das Release.

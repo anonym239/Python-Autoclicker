@@ -45,7 +45,7 @@
     boost: "Hotkey drücken, dann ganz normal klicken. Zu jedem Klick kommen Extra-Klicks dazu, so steigen deine CPS.",
     afk: "Klickt langsam weiter (1,6 CPS = Schwert-Cooldown ab 1.9). Ideal für Mob-Farmen.",
   };
-  const STATUS = { idle: "Aus", ready: "Bereit", clicking: "Klickt", paused: "Pause" };
+  const STATUS = { idle: "Aus", ready: "Bereit", clicking: "Klickt", paused: "Pause", countdown: "Start" };
   const ACTIONS = { toggle: "An / Aus", on: "Nur an", off: "Nur aus" };
   const KEY_LABELS = {
     ctrl: "Strg", shift: "Shift", alt: "Alt", win: "Win", space: "Leertaste", enter: "Enter", esc: "Esc",
@@ -122,6 +122,7 @@
     pressed("#button-seg", cur.button);
 
     setVal($("#o-stop"), g.auto_stop);
+    setVal($("#o-delay"), g.start_delay);
     setChecked($("#o-vary"), g.vary);
     setChecked($("#o-lock"), g.window_lock);
     setVal($("#o-match"), g.window_match);
@@ -195,20 +196,32 @@
     const st = E.state, mode = C.mode, main = mainHotkey(), btn = C.current.button === "right" ? "rechte" : "linke";
     const status = $("#status");
     status.dataset.s = st;
-    status.textContent = STATUS[st] || st;
+    const secs = Math.max(1, Math.ceil(E.countdown || 0));
+    status.textContent = st === "countdown" ? `Start in ${secs}` : STATUS[st] || st;
     $(".live").dataset.s = st;
     $("#cps").textContent = nf(E.cps);
     $("#st-clicks").textContent = new Intl.NumberFormat("de-DE").format(E.session_clicks);
     $("#st-time").textContent = clock(E.run_time);
     $("#st-best").textContent = nf(E.best_cps);
 
+    // Grosser Hinweis ueber der CPS-Anzeige, wenn (noch) nicht geklickt wird
+    let banner = null;
+    if (st === "countdown") banner = [`Start in ${secs} …`, "Wechsle jetzt ins Spiel – dann geht's los."];
+    else if (st === "paused" && E.reason === "self") banner = ["Läuft – wechsle jetzt ins Spiel!", "In dieses Fenster wird nicht geklickt. Sobald das Spiel vorne ist, geht's los."];
+    else if (st === "paused") banner = ["Pause – Minecraft ist nicht vorne", "Sobald Minecraft im Vordergrund ist, wird wieder geklickt."];
+    $("#banner").hidden = !banner;
+    if (banner) { $("#banner-title").textContent = banner[0]; $("#banner-text").textContent = banner[1]; }
+
     const start = $("#start");
     start.classList.toggle("stop", E.armed);
-    $("#start-label").textContent = E.armed ? "Stopp" : "Start";
+    start.classList.toggle("wait", st === "countdown");
+    $("#start-label").textContent = st === "countdown" ? "Abbrechen" : E.armed ? "Stopp" : "Start";
     $("#start-key").hidden = !main;
     $("#start-key").textContent = main ? keyLabel(main.key) : "";
     let hint;
-    if (E.armed) {
+    if (st === "countdown") {
+      hint = "Nochmal den Hotkey drücken bricht ab.";
+    } else if (E.armed) {
       if (st === "paused") hint = E.reason === "self" ? "Läuft – wechsle ins Spiel. In dieses Fenster wird nicht geklickt." : "Pause – Minecraft ist nicht im Vordergrund.";
       else if (mode === "hold_mouse") hint = st === "clicking" ? "Klickt, solange du hältst." : `Bereit – halte die ${btn} Maustaste gedrückt.`;
       else if (mode === "boost") hint = st === "clicking" ? "Boost!" : "Bereit – klick einfach ganz normal.";
@@ -269,6 +282,7 @@
   }
   numberInput($("#speed-num"), (v) => sendPreset({ cps: Math.min(1000, Math.max(0.1, v)) }));
   numberInput($("#o-stop"), (v) => sendGeneral({ auto_stop: Math.max(0, v) }));
+  numberInput($("#o-delay"), (v) => sendGeneral({ start_delay: Math.max(0, Math.min(60, v)) }));
   [["#o-vary", "vary"], ["#o-lock", "window_lock"], ["#o-top", "always_on_top"], ["#o-sound", "sound"]].forEach(([sel, key]) =>
     $(sel).addEventListener("change", (e) => { markEdit(e.target); sendGeneral({ [key]: e.target.checked }); }));
   $("#o-match").addEventListener("change", (e) => { markEdit(e.target); sendGeneral({ window_match: e.target.value }); });

@@ -40,6 +40,22 @@ class EngineTests(unittest.TestCase):
         self.assertTrue(wait_for(lambda: self.be.clicks > 0, 0.2), "erster Klick muss sofort kommen")
         self.assertEqual(self.events, ["start"])
 
+    def test_optional_countdown(self):
+        self.configure(cps_min=50, cps_max=50, start_delay=0.8)
+        self.e.start()
+        self.assertTrue(wait_for(lambda: self.e.status()["state"] == "countdown"))
+        self.assertIsNotNone(self.e.status()["countdown"])
+        self.assertEqual(self.be.clicks, 0)
+        self.assertTrue(wait_for(lambda: self.be.clicks > 0, 2.0))
+        self.assertEqual(self.events, ["countdown", "start"])
+        self.e.stop()
+        self.e.start()
+        self.e.toggle()  # Abbruch waehrend des Countdowns
+        self.assertIsNone(self.e.status()["countdown"])
+        self.assertFalse(self.e.armed)
+        time.sleep(0.9)
+        self.assertFalse(self.e.armed)
+
     def test_rate_is_accurate(self):
         self.configure(cps_min=50, cps_max=50)
         self.e.start()
