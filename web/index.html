@@ -113,6 +113,13 @@
         <span class="row-label" data-i18n="row_tools">Werkzeuge</span>
         <div class="row-ctl">
           <div class="tools" id="tools-list"></div>
+          <button type="button" class="icon-btn small" id="tools-export" data-i18n-title="tools_export" data-i18n-aria="tools_export">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4 3.3 3.3V3zM5 18h14v2H5z"/></svg>
+          </button>
+          <button type="button" class="icon-btn small" id="tools-import" data-i18n-title="tools_import" data-i18n-aria="tools_import">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 16h2V6.8l3.3 3.3 1.4-1.4L12 3 6.3 8.7l1.4 1.4L11 6.8V16zM5 18h14v2H5z"/></svg>
+          </button>
+          <input type="file" id="tools-file" accept=".json,application/json" hidden>
           <button type="button" class="btn small" id="tools-learn" data-i18n="tool_learn" data-i18n-title="tool_help">Werkzeug anlernen</button>
         </div>
       </div>

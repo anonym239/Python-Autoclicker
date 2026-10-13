@@ -23,6 +23,7 @@ from .updater import SNOOZE_SECONDS, Updater
 from .window import open_app_window, run_native_window
 
 RECORD_TIMEOUT = 15.0
+EXPORT_NAME = "AutoClicker-Werkzeuge.json"
 LEARN_TIMEOUT = 120.0   # so lange wartet "Werkzeug anlernen" auf das Abbauen im Spiel
 TOOL_RECHECK = 0.12     # bei gedrueckter Maustaste so oft nachschauen, was in der Hand ist
 TOOL_MODES = ("hold_mouse", "boost")
@@ -51,6 +52,7 @@ class App:
         self.recording = None                 # None | NEW | Index des Hotkeys
         self.learning = False                 # "Werkzeug anlernen" laeuft
         self.stop_key = ""                    # Hotkey, mit dem zuletzt geschaltet wurde
+        self.last_export = ""                 # Pfad der zuletzt exportierten Werkzeug-Datei
         self.learn_error = ""                 # letzter Fehlschlag beim Anlernen (Textschluessel)
         self._learn_deadline = 0.0
         self._learn_press = False
@@ -175,10 +177,10 @@ class App:
             if icon_ok and top_ok:
                 return
 
-    def _notify(self, key: str) -> None:
-        """key = Textschluessel aus web/i18n.js (die Oberflaeche uebersetzt ihn)."""
+    def _notify(self, key: str, **values) -> None:
+        """key = Textschluessel aus web/i18n.js (die Oberflaeche uebersetzt ihn), values = {platzhalter}."""
         self._notice_id += 1
-        self.notice = {"id": self._notice_id, "key": key, "at": time.time()}
+        self.notice = {"id": self._notice_id, "key": key, "vars": values, "at": time.time()}
 
     # ─── Ereignisse ─────────────────────────────────────
     def _on_hotkey(self, slot: str, down: bool) -> None:
@@ -403,9 +405,45 @@ class App:
             if not isinstance(index, int) or not self.config.delete_tool(index):
                 return {"error": "e_not_found"}
             self._save_soon()
+        elif op == "export":
+            return self._export_tools()
+        elif op == "import":
+            data = body.get("data")
+            items = data.get("tools") if isinstance(data, dict) else data
+            if not isinstance(items, list):
+                return {"error": "e_import"}
+            added = self.config.import_tools(items)
+            self._notify("n_tools_imported", n=added)
+            self._save_soon()
         else:
             return {"error": "Unbekannte Aktion"}
         self._apply()
+        return self.state()
+
+    def _export_tools(self):
+        """Werkzeuge (Umriss, Bild, Foto) als JSON-Datei in den Download-Ordner schreiben."""
+        tools = self.config.tools()
+        if not tools:
+            return {"error": "e_no_tools"}
+        home = os.path.expanduser("~")
+        folder = os.path.join(home, "Downloads")
+        if not os.path.isdir(folder):
+            folder = home if os.path.isdir(home) else self.folder
+        path = os.path.join(folder, EXPORT_NAME)
+        data = {"app": APP_NAME, "type": "werkzeuge", "version": VERSION, "tools": tools}
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=1)
+        except OSError:
+            return {"error": "e_export"}
+        self.last_export = path
+        self._notify("n_tools_exported", path=path)
+        if sys.platform == "win32" and not self.keep_alive:
+            try:  # Explorer oeffnen, Datei markiert
+                import subprocess
+                subprocess.Popen(["explorer", "/select,", path])
+            except OSError:
+                pass
         return self.state()
 
     def _on_record(self, slot: str, text: str | None) -> None:

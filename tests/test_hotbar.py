@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import random
 import struct
@@ -446,6 +447,39 @@ class LearnTests(unittest.TestCase):
                     app._on_mouse("left", False)
             finally:
                 app.shutdown()
+
+    def test_export_and_import_tools(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"HOME": tmp, "USERPROFILE": tmp}):
+            os.mkdir(os.path.join(tmp, "Downloads"))
+            a = App(os.path.join(tmp, "a"), "web", demo=True, keep_alive=True)
+            self.assertEqual(a.tools_action({"op": "export"}), {"error": "e_no_tools"})
+            shot = real_server_shot()
+            found = analyze(shot, 1280)
+            for slot in (2, 3):
+                item = item_sample(shot, found, slot)
+                a.config.learn_tool(item.mask_hex(), item.icon(), -1, slot_photo(shot, found, slot))
+            a.tools_action({"op": "export"})
+            path = os.path.join(tmp, "Downloads", "AutoClicker-Werkzeuge.json")
+            self.assertEqual(a.last_export, path)
+            self.assertEqual(a.notice["key"], "n_tools_exported")
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(len(data["tools"]), 2)
+            self.assertTrue(data["tools"][0]["photo"].startswith("data:image/png"))
+
+            # Auf einem anderen PC / nach Neuinstallation einlesen
+            b = App(os.path.join(tmp, "b"), "web", demo=True, keep_alive=True)
+            st = b.tools_action({"op": "import", "data": data})
+            self.assertEqual(len(st["config"]["tools"]), 2)
+            self.assertEqual(b.notice["vars"], {"n": 2})
+            b.tools_action({"op": "import", "data": data})          # nochmal -> keine Doppelten
+            self.assertEqual(len(b.config.tools()), 2)
+            self.assertEqual(b.notice["vars"], {"n": 0})
+            self.assertEqual(b.tools_action({"op": "import", "data": "quatsch"}), {"error": "e_import"})
+            # importierte Werkzeuge werden erkannt
+            b.handle("preset", {"id": "pvp"})
+            self.assertEqual(best_match(item_sample(shot, found, 2), b._tool_templates), 0)
 
     def test_click_in_own_window_does_not_learn(self):
         with tempfile.TemporaryDirectory() as tmp:

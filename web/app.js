@@ -281,6 +281,22 @@
     btn.textContent = learning ? t("cancel") : t("tool_learn");
   }
   $("#tools-learn").addEventListener("click", () => send("tools", { op: learning ? "cancel" : "learn" }));
+  // Werkzeuge als JSON-Datei sichern / aus einer Datei laden (auch eine ganze Einstellungsdatei geht)
+  $("#tools-export").addEventListener("click", () => send("tools", { op: "export" }));
+  $("#tools-import").addEventListener("click", () => $("#tools-file").click());
+  $("#tools-file").addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let data;
+      try { data = JSON.parse(reader.result); } catch (err) { toast(t("e_import")); return; }
+      send("tools", { op: "import", data });
+    };
+    reader.onerror = () => toast(t("e_import"));
+    reader.readAsText(file);
+  });
 
   // ─── Anzeigen: Live ─────────────────────────────────────
   function renderLive() {
@@ -357,7 +373,7 @@
     else if (wasRecording !== recording && C) renderHotkeys();
     if (!st.config && toolsChanged) renderTools();
     renderUpdate(st.update || null);
-    if (st.notice && st.notice.id !== lastNotice) { lastNotice = st.notice.id; toast(t(st.notice.key || st.notice.text || "")); }
+    if (st.notice && st.notice.id !== lastNotice) { lastNotice = st.notice.id; toast(t(st.notice.key || st.notice.text || "", st.notice.vars)); }
     renderLive();
   }
 

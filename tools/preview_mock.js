@@ -6,7 +6,7 @@ window.AC_MOCK = (() => {
   const PRESETS = __PRESETS__;
 
   const cfg = JSON.parse(JSON.stringify(CONFIG));
-  let update = { version: "6.14", status: "available", progress: 0, error: "", can_install: true };
+  let update = { version: "6.15", status: "available", progress: 0, error: "", can_install: true };
   let rev = 1, recording = null, recordUntil = 0, notice = null, noticeId = 0;
   let learning = false, slot = 1, learnPress = null;
   cfg.tools = cfg.tools || [];
@@ -165,6 +165,19 @@ window.AC_MOCK = (() => {
       if (b.op === "learn") learning = true;  // Klicker bleibt an (pausiert nur)
       else if (b.op === "cancel") learning = false;
       else if (b.op === "delete") cfg.tools = cfg.tools.filter((x, i) => i !== b.index);
+      else if (b.op === "export") {
+        if (!cfg.tools.length) fail("e_no_tools");
+        const blob = new Blob([JSON.stringify({ app: "AutoClicker", type: "werkzeuge", tools: cfg.tools }, null, 1)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = "AutoClicker-Werkzeuge.json"; a.click();
+        noticeId++; notice = { id: noticeId, key: "n_tools_exported", vars: { path: "Downloads" }, at: Date.now() };
+      } else if (b.op === "import") {
+        const items = Array.isArray(b.data) ? b.data : b.data && b.data.tools;
+        if (!Array.isArray(items)) fail("e_import");
+        let n = 0;
+        items.forEach((x) => { if (x && x.icon && cfg.tools.length < 12) { cfg.tools.push(x); n++; } });
+        noticeId++; notice = { id: noticeId, key: "n_tools_imported", vars: { n }, at: Date.now() };
+      }
     } else if (name === "update") {
       if (b.op === "later") { update = null; notify("Erinnerung in 5 Tagen"); }
       else if (b.op === "skip") update = null;

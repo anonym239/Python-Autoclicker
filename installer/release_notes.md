@@ -1,4 +1,4 @@
-**Neu in dieser Version:** Der Klicker bleibt an, bis du ihn selbst ausschaltest – „Werkzeug anlernen“ pausiert ihn nur noch kurz statt ihn auszuschalten. Geht er per Hotkey aus, zeigt die App jetzt an, mit welcher Taste (Tipp: „<“ liegt direkt neben Shift und wird beim Schleichen leicht mitgedrückt). Die Werkzeug-Erkennung kann außerdem nicht mehr im Zustand „Werkzeug in der Hand“ hängen bleiben.
+**Neu in dieser Version:** Werkzeuge exportieren und importieren (JSON) – neben „Werkzeug anlernen“ in Minecraft PvP und CPS-Boost. Der Export landet als `AutoClicker-Werkzeuge.json` im Download-Ordner, inklusive Bildern; beim Import werden doppelte übersprungen. So musst du nach einer Neuinstallation oder auf einem anderen PC nichts neu anlernen.
 
 **Download:** `AutoClicker-Setup-….exe` herunterladen und starten.
 Wer AutoClicker schon installiert hat, bekommt das Update auch direkt in der App angezeigt.

@@ -9,6 +9,13 @@ window.AC_LANGS = [
 
 window.AC_I18N = {
   de: {
+    tools_export: "Werkzeuge exportieren (JSON)",
+    tools_import: "Werkzeuge importieren (JSON)",
+    n_tools_exported: "Gespeichert: {path}",
+    n_tools_imported: "{n} Werkzeuge importiert",
+    e_import: "Die Datei konnte nicht gelesen werden",
+    e_no_tools: "Noch keine Werkzeuge zum Exportieren",
+    e_export: "Die Datei konnte nicht gespeichert werden",
     hint_off_hotkey: "Ausgeschaltet per Hotkey {key} – nochmal drücken startet wieder.",
     mode: "Modus",
     help: "Anleitung",
@@ -158,6 +165,13 @@ window.AC_I18N = {
   },
 
   en: {
+    tools_export: "Export tools (JSON)",
+    tools_import: "Import tools (JSON)",
+    n_tools_exported: "Saved: {path}",
+    n_tools_imported: "{n} tools imported",
+    e_import: "The file could not be read",
+    e_no_tools: "No tools to export yet",
+    e_export: "The file could not be saved",
     hint_off_hotkey: "Turned off with hotkey {key} – press it again to start.",
     mode: "Mode",
     help: "Guide",
@@ -307,6 +321,13 @@ window.AC_I18N = {
   },
 
   es: {
+    tools_export: "Exportar herramientas (JSON)",
+    tools_import: "Importar herramientas (JSON)",
+    n_tools_exported: "Guardado: {path}",
+    n_tools_imported: "{n} herramientas importadas",
+    e_import: "No se pudo leer el archivo",
+    e_no_tools: "Aún no hay herramientas para exportar",
+    e_export: "No se pudo guardar el archivo",
     hint_off_hotkey: "Apagado con la tecla {key} – púlsala otra vez para empezar.",
     mode: "Modo",
     help: "Guía",
@@ -456,6 +477,13 @@ window.AC_I18N = {
   },
 
   fr: {
+    tools_export: "Exporter les outils (JSON)",
+    tools_import: "Importer des outils (JSON)",
+    n_tools_exported: "Enregistré : {path}",
+    n_tools_imported: "{n} outils importés",
+    e_import: "Impossible de lire le fichier",
+    e_no_tools: "Aucun outil à exporter",
+    e_export: "Impossible d’enregistrer le fichier",
     hint_off_hotkey: "Arrêté avec la touche {key} – appuie de nouveau pour démarrer.",
     mode: "Mode",
     help: "Guide",
@@ -605,6 +633,13 @@ window.AC_I18N = {
   },
 
   it: {
+    tools_export: "Esporta attrezzi (JSON)",
+    tools_import: "Importa attrezzi (JSON)",
+    n_tools_exported: "Salvato: {path}",
+    n_tools_imported: "{n} attrezzi importati",
+    e_import: "Impossibile leggere il file",
+    e_no_tools: "Nessun attrezzo da esportare",
+    e_export: "Impossibile salvare il file",
     hint_off_hotkey: "Spento con il tasto {key} – premilo di nuovo per ripartire.",
     mode: "Modalità",
     help: "Guida",
@@ -754,6 +789,13 @@ window.AC_I18N = {
   },
 
   pt: {
+    tools_export: "Exportar ferramentas (JSON)",
+    tools_import: "Importar ferramentas (JSON)",
+    n_tools_exported: "Salvo: {path}",
+    n_tools_imported: "{n} ferramentas importadas",
+    e_import: "Não foi possível ler o arquivo",
+    e_no_tools: "Ainda não há ferramentas para exportar",
+    e_export: "Não foi possível salvar o arquivo",
     hint_off_hotkey: "Desligado pela tecla {key} – aperte de novo para começar.",
     mode: "Modo",
     help: "Guia",
@@ -903,6 +945,13 @@ window.AC_I18N = {
   },
 
   nl: {
+    tools_export: "Gereedschap exporteren (JSON)",
+    tools_import: "Gereedschap importeren (JSON)",
+    n_tools_exported: "Opgeslagen: {path}",
+    n_tools_imported: "{n} gereedschappen geïmporteerd",
+    e_import: "Het bestand kon niet worden gelezen",
+    e_no_tools: "Nog geen gereedschap om te exporteren",
+    e_export: "Het bestand kon niet worden opgeslagen",
     hint_off_hotkey: "Uitgezet met sneltoets {key} – druk nog eens om te starten.",
     mode: "Modus",
     help: "Uitleg",
@@ -1052,6 +1101,13 @@ window.AC_I18N = {
   },
 
   sv: {
+    tools_export: "Exportera verktyg (JSON)",
+    tools_import: "Importera verktyg (JSON)",
+    n_tools_exported: "Sparat: {path}",
+    n_tools_imported: "{n} verktyg importerade",
+    e_import: "Filen kunde inte läsas",
+    e_no_tools: "Inga verktyg att exportera än",
+    e_export: "Filen kunde inte sparas",
     hint_off_hotkey: "Avstängd med snabbtangent {key} – tryck igen för att starta.",
     mode: "Läge",
     help: "Guide",
@@ -1201,6 +1257,13 @@ window.AC_I18N = {
   },
 
   nb: {
+    tools_export: "Eksporter verktøy (JSON)",
+    tools_import: "Importer verktøy (JSON)",
+    n_tools_exported: "Lagret: {path}",
+    n_tools_imported: "{n} verktøy importert",
+    e_import: "Filen kunne ikke leses",
+    e_no_tools: "Ingen verktøy å eksportere ennå",
+    e_export: "Filen kunne ikke lagres",
     hint_off_hotkey: "Slått av med hurtigtast {key} – trykk igjen for å starte.",
     mode: "Modus",
     help: "Guide",
@@ -1350,6 +1413,13 @@ window.AC_I18N = {
   },
 
   da: {
+    tools_export: "Eksportér værktøj (JSON)",
+    tools_import: "Importér værktøj (JSON)",
+    n_tools_exported: "Gemt: {path}",
+    n_tools_imported: "{n} værktøjer importeret",
+    e_import: "Filen kunne ikke læses",
+    e_no_tools: "Ingen værktøjer at eksportere endnu",
+    e_export: "Filen kunne ikke gemmes",
     hint_off_hotkey: "Slået fra med genvejstast {key} – tryk igen for at starte.",
     mode: "Tilstand",
     help: "Guide",
@@ -1499,6 +1569,13 @@ window.AC_I18N = {
   },
 
   fi: {
+    tools_export: "Vie työkalut (JSON)",
+    tools_import: "Tuo työkalut (JSON)",
+    n_tools_exported: "Tallennettu: {path}",
+    n_tools_imported: "{n} työkalua tuotu",
+    e_import: "Tiedostoa ei voitu lukea",
+    e_no_tools: "Ei vielä työkaluja vietäväksi",
+    e_export: "Tiedostoa ei voitu tallentaa",
     hint_off_hotkey: "Pysäytetty pikanäppäimellä {key} – paina uudelleen käynnistääksesi.",
     mode: "Tila",
     help: "Ohje",
@@ -1648,6 +1725,13 @@ window.AC_I18N = {
   },
 
   pl: {
+    tools_export: "Eksportuj narzędzia (JSON)",
+    tools_import: "Importuj narzędzia (JSON)",
+    n_tools_exported: "Zapisano: {path}",
+    n_tools_imported: "Zaimportowano narzędzia: {n}",
+    e_import: "Nie udało się odczytać pliku",
+    e_no_tools: "Brak narzędzi do eksportu",
+    e_export: "Nie udało się zapisać pliku",
     hint_off_hotkey: "Wyłączono klawiszem {key} – naciśnij ponownie, aby uruchomić.",
     mode: "Tryb",
     help: "Poradnik",
@@ -1797,6 +1881,13 @@ window.AC_I18N = {
   },
 
   cs: {
+    tools_export: "Exportovat nástroje (JSON)",
+    tools_import: "Importovat nástroje (JSON)",
+    n_tools_exported: "Uloženo: {path}",
+    n_tools_imported: "Importováno nástrojů: {n}",
+    e_import: "Soubor se nepodařilo načíst",
+    e_no_tools: "Zatím žádné nástroje k exportu",
+    e_export: "Soubor se nepodařilo uložit",
     hint_off_hotkey: "Vypnuto klávesou {key} – stiskni znovu pro spuštění.",
     mode: "Režim",
     help: "Návod",
@@ -1946,6 +2037,13 @@ window.AC_I18N = {
   },
 
   sk: {
+    tools_export: "Exportovať nástroje (JSON)",
+    tools_import: "Importovať nástroje (JSON)",
+    n_tools_exported: "Uložené: {path}",
+    n_tools_imported: "Importované nástroje: {n}",
+    e_import: "Súbor sa nepodarilo načítať",
+    e_no_tools: "Zatiaľ žiadne nástroje na export",
+    e_export: "Súbor sa nepodarilo uložiť",
     hint_off_hotkey: "Vypnuté klávesom {key} – stlač znova na spustenie.",
     mode: "Režim",
     help: "Návod",
@@ -2095,6 +2193,13 @@ window.AC_I18N = {
   },
 
   hu: {
+    tools_export: "Eszközök exportálása (JSON)",
+    tools_import: "Eszközök importálása (JSON)",
+    n_tools_exported: "Mentve: {path}",
+    n_tools_imported: "{n} eszköz importálva",
+    e_import: "A fájlt nem sikerült beolvasni",
+    e_no_tools: "Még nincs exportálható eszköz",
+    e_export: "A fájlt nem sikerült menteni",
     hint_off_hotkey: "Kikapcsolva a(z) {key} gyorsbillentyűvel – nyomd meg újra az indításhoz.",
     mode: "Mód",
     help: "Útmutató",
@@ -2244,6 +2349,13 @@ window.AC_I18N = {
   },
 
   ro: {
+    tools_export: "Exportă uneltele (JSON)",
+    tools_import: "Importă unelte (JSON)",
+    n_tools_exported: "Salvat: {path}",
+    n_tools_imported: "{n} unelte importate",
+    e_import: "Fișierul nu a putut fi citit",
+    e_no_tools: "Încă nu există unelte de exportat",
+    e_export: "Fișierul nu a putut fi salvat",
     hint_off_hotkey: "Oprit cu tasta {key} – apasă din nou ca să pornești.",
     mode: "Mod",
     help: "Ghid",
@@ -2393,6 +2505,13 @@ window.AC_I18N = {
   },
 
   el: {
+    tools_export: "Εξαγωγή εργαλείων (JSON)",
+    tools_import: "Εισαγωγή εργαλείων (JSON)",
+    n_tools_exported: "Αποθηκεύτηκε: {path}",
+    n_tools_imported: "Εισήχθησαν {n} εργαλεία",
+    e_import: "Δεν ήταν δυνατή η ανάγνωση του αρχείου",
+    e_no_tools: "Δεν υπάρχουν ακόμα εργαλεία για εξαγωγή",
+    e_export: "Δεν ήταν δυνατή η αποθήκευση του αρχείου",
     hint_off_hotkey: "Απενεργοποιήθηκε με το πλήκτρο {key} – πάτησέ το ξανά για έναρξη.",
     mode: "Λειτουργία",
     help: "Οδηγός",
@@ -2542,6 +2661,13 @@ window.AC_I18N = {
   },
 
   bg: {
+    tools_export: "Експорт на инструменти (JSON)",
+    tools_import: "Импорт на инструменти (JSON)",
+    n_tools_exported: "Запазено: {path}",
+    n_tools_imported: "Импортирани инструменти: {n}",
+    e_import: "Файлът не може да бъде прочетен",
+    e_no_tools: "Още няма инструменти за експорт",
+    e_export: "Файлът не може да бъде запазен",
     hint_off_hotkey: "Изключено с клавиш {key} – натисни отново за старт.",
     mode: "Режим",
     help: "Ръководство",
@@ -2691,6 +2817,13 @@ window.AC_I18N = {
   },
 
   ru: {
+    tools_export: "Экспорт инструментов (JSON)",
+    tools_import: "Импорт инструментов (JSON)",
+    n_tools_exported: "Сохранено: {path}",
+    n_tools_imported: "Импортировано инструментов: {n}",
+    e_import: "Не удалось прочитать файл",
+    e_no_tools: "Пока нет инструментов для экспорта",
+    e_export: "Не удалось сохранить файл",
     hint_off_hotkey: "Выключено клавишей {key} – нажми ещё раз, чтобы запустить.",
     mode: "Режим",
     help: "Инструкция",
@@ -2840,6 +2973,13 @@ window.AC_I18N = {
   },
 
   uk: {
+    tools_export: "Експорт інструментів (JSON)",
+    tools_import: "Імпорт інструментів (JSON)",
+    n_tools_exported: "Збережено: {path}",
+    n_tools_imported: "Імпортовано інструментів: {n}",
+    e_import: "Не вдалося прочитати файл",
+    e_no_tools: "Поки немає інструментів для експорту",
+    e_export: "Не вдалося зберегти файл",
     hint_off_hotkey: "Вимкнено клавішею {key} – натисни ще раз, щоб запустити.",
     mode: "Режим",
     help: "Інструкція",
@@ -2989,6 +3129,13 @@ window.AC_I18N = {
   },
 
   tr: {
+    tools_export: "Aletleri dışa aktar (JSON)",
+    tools_import: "Aletleri içe aktar (JSON)",
+    n_tools_exported: "Kaydedildi: {path}",
+    n_tools_imported: "{n} alet içe aktarıldı",
+    e_import: "Dosya okunamadı",
+    e_no_tools: "Henüz dışa aktarılacak alet yok",
+    e_export: "Dosya kaydedilemedi",
     hint_off_hotkey: "{key} kısayoluyla kapatıldı – başlatmak için tekrar bas.",
     mode: "Mod",
     help: "Rehber",
@@ -3138,6 +3285,13 @@ window.AC_I18N = {
   },
 
   ja: {
+    tools_export: "ツールをエクスポート (JSON)",
+    tools_import: "ツールをインポート (JSON)",
+    n_tools_exported: "保存しました: {path}",
+    n_tools_imported: "{n} 個のツールをインポートしました",
+    e_import: "ファイルを読み込めませんでした",
+    e_no_tools: "エクスポートするツールがまだありません",
+    e_export: "ファイルを保存できませんでした",
     hint_off_hotkey: "ホットキー {key} でオフになりました。もう一度押すと開始します。",
     mode: "モード",
     help: "ガイド",
@@ -3287,6 +3441,13 @@ window.AC_I18N = {
   },
 
   zh: {
+    tools_export: "导出工具 (JSON)",
+    tools_import: "导入工具 (JSON)",
+    n_tools_exported: "已保存：{path}",
+    n_tools_imported: "已导入 {n} 个工具",
+    e_import: "无法读取文件",
+    e_no_tools: "还没有可导出的工具",
+    e_export: "无法保存文件",
     hint_off_hotkey: "已通过快捷键 {key} 关闭 – 再按一次即可开始。",
     mode: "模式",
     help: "指南",
@@ -3436,6 +3597,13 @@ window.AC_I18N = {
   },
 
   ko: {
+    tools_export: "도구 내보내기 (JSON)",
+    tools_import: "도구 가져오기 (JSON)",
+    n_tools_exported: "저장됨: {path}",
+    n_tools_imported: "도구 {n}개를 가져왔습니다",
+    e_import: "파일을 읽을 수 없습니다",
+    e_no_tools: "내보낼 도구가 아직 없습니다",
+    e_export: "파일을 저장할 수 없습니다",
     hint_off_hotkey: "단축키 {key}(으)로 꺼졌습니다 – 다시 누르면 시작합니다.",
     mode: "모드",
     help: "가이드",

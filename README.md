@@ -37,6 +37,7 @@ und einen Block abbauen (geht auch im Kreativmodus). Der AutoClicker erkennt das
 sein Bild an. Danach gilt – egal auf welchem Platz und aus welchem Material: Werkzeug in der Hand = Maustaste
 wird normal gehalten, alles andere (Schwert, leere Hand …) = schnelle Klicks. Klappt die Erkennung nicht,
 wird nie gebremst. Beim Anlernen hörst du einen Ton (hoch = gespeichert, tief = nochmal versuchen).
+Mit den zwei kleinen Knöpfen daneben kannst du deine Werkzeuge als JSON-Datei **exportieren** (landet im Download-Ordner) und wieder **importieren** – z. B. nach einer Neuinstallation.
 Zur Fehlersuche liegen `hotbar-aufnahme.png` und `hotbar-log.txt` im Einstellungsordner (`%APPDATA%\AutoClicker`).
 
 **Sprache:** 24 Sprachen (u. a. Deutsch, English, Español, Français, Русский, Українська, Svenska, Suomi, Nederlands …) – unter **Einstellungen → Sprache**
