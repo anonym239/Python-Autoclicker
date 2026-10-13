@@ -6,16 +6,17 @@ window.AC_MOCK = (() => {
   const PRESETS = __PRESETS__;
 
   const cfg = JSON.parse(JSON.stringify(CONFIG));
-  let update = { version: "6.7", status: "available", progress: 0, error: "", can_install: true };
+  let update = { version: "6.8", status: "available", progress: 0, error: "", can_install: true };
   let rev = 1, recording = null, recordUntil = 0, notice = null, noticeId = 0;
   let learning = false, slot = 1, learnPress = null;
   cfg.tools = cfg.tools || [];
-  const isTool = () => (mode() === "hold_mouse" || mode() === "boost") && cfg.tools.some((x) => x.slot === slot);
+  // Vorschau: auf Platz 3 liegt eine Spitzhacke, sonst ein Schwert (Tasten 1–9 wechseln)
+  const toolIndex = () => (slot === 3 ? cfg.tools.findIndex((x) => x.demo) : -1);
+  const isTool = () => (mode() === "hold_mouse" || mode() === "boost") && toolIndex() >= 0;
   // Vorschau: kleine Pixel-Spitzhacke als "abfotografiertes" Item
   function demoIcon() {
     const c = document.createElement("canvas"); c.width = c.height = 16;
     const g = c.getContext("2d");
-    g.fillStyle = "#6b6b6b"; g.fillRect(0, 0, 16, 16);
     g.fillStyle = "#6b4a2b"; for (let i = 3; i < 14; i++) g.fillRect(i, 15 - i, 2, 2);
     g.fillStyle = "#4fd1c5"; [[3,2],[4,1],[5,1],[6,1],[7,1],[8,1],[9,2],[10,3],[11,4],[12,5],[13,6],[14,7],[14,8],[13,9]].forEach(([x, y]) => g.fillRect(x, y, 1, 2));
     return c.toDataURL("image/png");
@@ -94,7 +95,8 @@ window.AC_MOCK = (() => {
       },
       recording,
       learning,
-      slot,
+      tool_index: (mode() === "hold_mouse" || mode() === "boost") ? toolIndex() : -1,
+      hotbar: true,
       update,
       notice: notice && Date.now() - notice.at < 6000 ? notice : null,
     };
@@ -162,7 +164,7 @@ window.AC_MOCK = (() => {
     } else if (name === "tools") {
       if (b.op === "learn") { stop("manual"); learning = true; }
       else if (b.op === "cancel") learning = false;
-      else if (b.op === "delete") cfg.tools = cfg.tools.filter((x) => x.slot !== b.slot);
+      else if (b.op === "delete") cfg.tools = cfg.tools.filter((x, i) => i !== b.index);
     } else if (name === "update") {
       if (b.op === "later") { update = null; notify("Erinnerung in 5 Tagen"); }
       else if (b.op === "skip") update = null;
@@ -201,9 +203,12 @@ window.AC_MOCK = (() => {
   window.addEventListener("pointerup", (e) => {
     const b = BTN[e.button] || "left";
     const was = eng.mouse.delete(b);
-    if (learning && learnPress !== null && now() - learnPress >= 0.35) {
-      cfg.tools = cfg.tools.filter((x) => x.slot !== slot).concat([{ slot, icon: demoIcon() }]).sort((a, c) => a.slot - c.slot);
-      learning = false; rev++; notify("n_tool_saved");
+    if (learning && learnPress !== null) {
+      if (slot !== 3) notify("e_tool_empty");  // Vorschau: nur Platz 3 hat ein Werkzeug
+      else {
+        cfg.tools = cfg.tools.filter((x) => !x.demo).concat([{ mask: "", icon: demoIcon(), demo: true }]);
+        learning = false; rev++; notify("n_tool_saved");
+      }
     }
     learnPress = null;
     if (was && eng.armed && mode() === "boost" && b === cur().button) {

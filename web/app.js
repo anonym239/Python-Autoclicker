@@ -108,7 +108,7 @@
   const delayText = (v) => v > 0 ? t("seconds_short", { n: v }) : t("off");
 
   // ─── Zustand ────────────────────────────────────────────
-  let rev = -1, C = null, INFO = null, E = null, recording = null, learning = false, slot = 1;
+  let rev = -1, C = null, INFO = null, E = null, recording = null, learning = false, toolIndex = -1;
   let lastNotice = 0, fails = 0, tourShown = false;
   const edited = new Map();
   const markEdit = (el) => edited.set(el.id, Date.now());
@@ -255,10 +255,9 @@
       none.textContent = t("tools_empty");
       list.appendChild(none);
     }
-    C.tools.forEach((tool) => {
+    C.tools.forEach((tool, i) => {
       const chip = document.createElement("span");
-      chip.className = "tool-chip" + (tool.slot === slot ? " on" : "");
-      chip.title = t("tool_slot", { n: tool.slot });
+      chip.className = "tool-chip" + (i === toolIndex ? " on" : "");
       const icon = document.createElement("span");
       icon.className = "tool-icon";
       if (tool.icon) {
@@ -273,8 +272,8 @@
       del.className = "icon-btn";
       del.textContent = "✕";
       del.setAttribute("aria-label", t("tool_delete"));
-      del.addEventListener("click", () => send("tools", { op: "delete", slot: tool.slot }));
-      chip.append(icon, document.createTextNode(String(tool.slot)), del);
+      del.addEventListener("click", () => send("tools", { op: "delete", index: i }));
+      chip.append(icon, del);
       list.appendChild(chip);
     });
     const btn = $("#tools-learn");
@@ -350,9 +349,9 @@
     if (st.config) { C = st.config; INFO = st.info; rev = st.rev; }
     E = st.engine;
     recording = st.recording === undefined ? null : st.recording;
-    const tools = (st.learning || false) + ":" + (st.slot || 1);
-    const toolsChanged = tools !== learning + ":" + slot;
-    learning = !!st.learning; slot = st.slot || 1;
+    const ti = st.tool_index === undefined ? -1 : st.tool_index;
+    const toolsChanged = !!st.learning !== learning || ti !== toolIndex;
+    learning = !!st.learning; toolIndex = ti;
     if (st.config) renderConfig();
     else if (wasRecording !== recording && C) renderHotkeys();
     if (!st.config && toolsChanged) renderTools();

@@ -1,38 +1,51 @@
 import base64
+import os
 import struct
 import tempfile
 import time
 import unittest
-import zlib
 
 from clicker.app import App
 from clicker.backend import DemoBackend
 from clicker.engine import ClickEngine, ClickSettings, SmartSettings
-from clicker.hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, analyze, auto_gui_scale,
-                            item_pixels, looks_empty, png_data_url)
+from clicker.hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, analyze, auto_gui_scale, best_match,
+                            item_sample, mask_from_hex, png_bytes, shot_png)
 
 WORLD = (90, 130, 200)
 HOTBAR = (55, 55, 55)
 FRAME = (235, 235, 235)
+HANDLE = (105, 75, 40)
+DIAMOND, IRON, GOLD = (70, 220, 210), (215, 215, 215), (250, 220, 60)
+
+# Eigene, grobe Umrisse (keine Minecraft-Grafiken): Spitzhacke, Schwert, Wolle
+PICKAXE = (["....XXXXXXX.....", "..XXX.....XXX...", ".XX.......H.XX..", "XX.......H....XX",
+            "X.......H......X", "X......H........", "......H.........", ".....H.........."]
+           + ["....H...........", "...H............", "..H.............", ".H..............",
+              "H...............", "................", "................", "................"])
+SWORD = ["..............XX", ".............XXX", "............XXX.", "...........XXX..",
+         "..........XXX...", ".........XXX....", "........XXX.....", ".......XXX......",
+         "..X...XXX.......", "...X.XXX........", "....XXX.........", "...HXX..........",
+         "..H..X..........", ".H..............", "H...............", "................"]
+WOOL = ["XXXXXXXXXXXXXXXX"] * 14 + ["................"] * 2
 
 
-def fake_hotbar(width, height, selected, scale=None, item_slot=None):
-    """Unteren Bildschirmrand mit einer Minecraft-Hotbar nachbauen (BGRA)."""
+def fake_hotbar(width, height, selected, items=None, scale=None):
+    """Unteren Bildschirmrand mit einer Minecraft-artigen Hotbar nachbauen (BGRA).
+
+    items: {platz: (umriss, farbe)}"""
     s = scale or auto_gui_scale(width, height)
     rows = CAPTURE_GUI_H * MAX_SCALE
     top = height - rows
     px = bytearray(bytes((WORLD[2], WORLD[1], WORLD[0], 255)) * (width * rows))
 
-    def put(x, y, rgb):
-        yy = y - top
-        if 0 <= x < width and 0 <= yy < rows:
-            i = (yy * width + x) * 4
-            px[i:i + 4] = bytes((rgb[2], rgb[1], rgb[0], 255))
-
     def rect(gx, gy, gw, gh, rgb):
         for y in range(gy * s, (gy + gh) * s):
-            for x in range(gx * s, (gx + gw) * s):
-                put(x, y, rgb)
+            yy = y - top
+            if 0 <= yy < rows:
+                for x in range(gx * s, (gx + gw) * s):
+                    if 0 <= x < width:
+                        i = (yy * width + x) * 4
+                        px[i:i + 4] = bytes((rgb[2], rgb[1], rgb[0], 255))
 
     gw, gh = -(-width // s), -(-height // s)
     hx, hy = gw // 2 - 91, gh - 22
@@ -41,12 +54,18 @@ def fake_hotbar(width, height, selected, scale=None, item_slot=None):
     rect(fx, hy - 1, 24, 2, FRAME)          # oben
     rect(fx, hy - 1, 2, 24, FRAME)          # links
     rect(fx + 22, hy - 1, 2, 24, FRAME)     # rechts
-    if item_slot:
-        ix = hx + 3 + (item_slot - 1) * 20
-        for gy in range(16):
-            for gx in range(16):
-                rect(ix + gx, hy + 3 + gy, 1, 1, (200, 40, 40) if (gx + gy) % 2 else (240, 200, 60))
-    return Shot(width, rows, bytes(px), height)
+    for slot, (shape, color) in (items or {}).items():
+        ix = hx + 3 + (slot - 1) * 20
+        for y, line in enumerate(shape):
+            for x, c in enumerate(line):
+                if c != ".":
+                    rect(ix + x, hy + 3 + y, 1, 1, HANDLE if c == "H" else color)
+    return width, rows, bytes(px), height
+
+
+def shot_of(*args, **kw):
+    w, h, px, ch = fake_hotbar(*args, **kw)
+    return Shot(w, h, px, ch)
 
 
 class HotbarTests(unittest.TestCase):
@@ -57,65 +76,48 @@ class HotbarTests(unittest.TestCase):
 
     def test_finds_selected_slot(self):
         for w, h, sel in ((1920, 1080, 1), (1280, 720, 5), (854, 480, 9), (1600, 900, 3)):
-            found = analyze(fake_hotbar(w, h, sel), w)
+            found = analyze(shot_of(w, h, sel), w)
             self.assertIsNotNone(found, (w, h))
             self.assertEqual(found["slot"], sel, (w, h))
             self.assertEqual(found["scale"], auto_gui_scale(w, h))
 
     def test_fixed_gui_scale(self):
-        found = analyze(fake_hotbar(1920, 1080, 7, scale=2), 1920)
+        found = analyze(shot_of(1920, 1080, 7, scale=2), 1920)
         self.assertEqual((found["scale"], found["slot"]), (2, 7))
 
     def test_nothing_found_without_hotbar(self):
         shot = Shot(800, 100, bytes((10, 200, 30, 255)) * 80000, 600)
         self.assertIsNone(analyze(shot, 800))
 
-    def test_item_icon(self):
-        shot = fake_hotbar(1280, 720, 4, item_slot=4)
-        found = analyze(shot, 1280)
-        rows = item_pixels(shot, found, 4)
-        self.assertEqual(rows[0][0], (240, 200, 60))
-        self.assertEqual(rows[0][1], (200, 40, 40))
-        self.assertFalse(looks_empty(rows))
-        self.assertTrue(looks_empty(item_pixels(shot, found, 2)))
-        url = png_data_url(rows)
+    def test_same_tool_any_slot_any_material(self):
+        learned = shot_of(1280, 720, 2, {2: (PICKAXE, DIAMOND), 3: (SWORD, IRON)})
+        found = analyze(learned, 1280)
+        pick = item_sample(learned, found, 2)
+        self.assertFalse(pick.empty)
+        masks = [mask_from_hex(pick.mask_hex())]
+        self.assertEqual(masks[0], pick.mask)
+
+        # Andere Hotbar: Gold-Spitzhacke auf Platz 7, Schwert auf 1, Wolle auf 4, Platz 9 leer
+        play = shot_of(1920, 1080, 7, {7: (PICKAXE, GOLD), 1: (SWORD, DIAMOND), 4: (WOOL, IRON)})
+        found = analyze(play, 1920)
+        self.assertEqual(best_match(item_sample(play, found, 7), masks), 0)
+        self.assertEqual(best_match(item_sample(play, found, 1), masks), -1)
+        self.assertEqual(best_match(item_sample(play, found, 4), masks), -1)
+        empty = item_sample(play, found, 9)
+        self.assertTrue(empty.empty)
+        self.assertEqual(best_match(empty, masks), -1)
+
+    def test_icon_is_transparent_png(self):
+        shot = shot_of(1280, 720, 4, {4: (PICKAXE, DIAMOND)})
+        item = item_sample(shot, analyze(shot, 1280), 4)
+        url = item.icon()
         png = base64.b64decode(url.split(",", 1)[1])
         self.assertEqual(png[:8], b"\x89PNG\r\n\x1a\n")
-        self.assertEqual(struct.unpack(">II", png[16:24]), (16, 16))
-        idat = png[png.index(b"IDAT") + 4:png.index(b"IEND") - 8]
-        self.assertEqual(len(zlib.decompress(idat)), 16 * (1 + 16 * 3))
-        self.assertLess(len(url), 4000)
-
-
-class SlotTrackerTests(unittest.TestCase):
-    def test_keys_and_wheel(self):
-        t = SlotTracker()
-        self.assertTrue(t.key("3"))
-        self.assertEqual(t.slot, 3)
-        t.wheel(up=False)
-        self.assertEqual(t.slot, 4)
-        t.key("1")
-        t.wheel(up=True)
-        self.assertEqual(t.slot, 9)  # links herum
-        self.assertFalse(t.key("0"))
-
-    def test_chat_and_inventory_ignored(self):
-        t = SlotTracker()
-        t.key("t")
-        t.key("5")             # im Chat getippt
-        self.assertEqual(t.slot, 1)
-        t.key("enter")
-        t.key("e")             # Inventar
-        t.key("2")
-        t.wheel(up=False)
-        self.assertEqual(t.slot, 1)
-        t.key("esc")
-        t.key("2")
-        self.assertEqual(t.slot, 2)
-        t.key("t")
-        t.sync(6)              # Hotbar sichtbar erkannt -> nichts mehr offen
-        t.key("7")
-        self.assertEqual(t.slot, 7)
+        w, h, depth, color = struct.unpack(">IIBB", png[16:26])
+        self.assertEqual((w, h, depth, color), (16, 16, 8, 6))  # RGBA
+        self.assertLess(len(url), 8000)
+        self.assertEqual(shot_png(shot)[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(png_bytes([[(1, 2, 3)]])[:8], b"\x89PNG\r\n\x1a\n")
 
 
 class ToolEngineTests(unittest.TestCase):
@@ -144,55 +146,108 @@ class ToolEngineTests(unittest.TestCase):
         self.engine.set_tool(True)
         self.assertIn("left", self.backend.down)
 
+    def test_waits_briefly_for_the_check(self):
+        self.engine.start()
+        self.engine.begin_tool_check(5.0)
+        self.engine.set_mouse_held("left", True)
+        time.sleep(0.2)
+        self.assertEqual(self.backend.clicks, 0)   # noch nicht entschieden
+        self.engine.set_tool(False)                 # kein Werkzeug -> los
+        time.sleep(0.2)
+        self.assertGreater(self.backend.clicks, 3)
+
 
 class LearnTests(unittest.TestCase):
-    def test_learn_and_delete_tool(self):
+    def wait_for(self, cond, timeout=3.0):
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            if cond():
+                return True
+            time.sleep(0.02)
+        return False
+
+    def test_learn_in_creative_and_detect_anywhere(self):
         with tempfile.TemporaryDirectory() as tmp:
             app = App(tmp, "web", demo=True, keep_alive=True)
-            app._apply(initial=True)
-            app.engine.start_threads()
+            app.start()
+            screen = app.backend
             try:
                 app.engine.start()
                 st = app.tools_action({"op": "learn"})
                 self.assertTrue(st["learning"])
                 self.assertFalse(st["engine"]["armed"])  # Anlernen schaltet den Klicker aus
-                app._on_raw_input("k", "3", True)        # Spitzhacke auf Platz 3
+
+                # Hotbar nicht sichtbar -> Hinweis, Anlernen laeuft weiter
                 app._on_mouse("left", True)
-                time.sleep(0.45)                          # Block abbauen
                 app._on_mouse("left", False)
-                for _ in range(50):
-                    if not app.learning:
-                        break
-                    time.sleep(0.05)
-                self.assertFalse(app.learning)
-                self.assertEqual(app.config.tools(), [{"slot": 3, "icon": ""}])
+                self.assertTrue(self.wait_for(lambda: app.notice and app.notice["key"] == "e_hotbar"))
+                self.assertTrue(app.learning)
+
+                # Kreativmodus: kurzer Klick genuegt
+                screen.screen = fake_hotbar(1280, 720, 3, {3: (PICKAXE, DIAMOND), 1: (SWORD, IRON)})
+                app._on_mouse("left", True)
+                app._on_mouse("left", False)
+                self.assertTrue(self.wait_for(lambda: not app.learning))
+                tools = app.config.tools()
+                self.assertEqual(len(tools), 1)
+                self.assertTrue(tools[0]["icon"].startswith("data:image/png;base64,"))
                 self.assertEqual(app.notice["key"], "n_tool_saved")
+                self.assertTrue(os.path.isfile(os.path.join(tmp, "hotbar-aufnahme.png")))
 
-                # Im PvP-Modus: Platz 3 = Werkzeug, Platz 1 = Schwert
+                # Gleiches Werkzeug nochmal anlernen -> ersetzt statt doppelt
+                app.tools_action({"op": "learn"})
+                app._on_mouse("left", True)
+                app._on_mouse("left", False)
+                self.assertTrue(self.wait_for(lambda: not app.learning))
+                self.assertEqual(len(app.config.tools()), 1)
+
+                # PvP: Werkzeug auf einem ganz anderen Platz / anderes Material
                 app.handle("preset", {"id": "pvp"})
-                app._on_raw_input("k", "3", True)
-                self.assertTrue(app.engine.tool)
-                app._on_raw_input("w", "up", True)
-                self.assertEqual(app.slots.slot, 2)
+                app.engine.start()
+                screen.screen = fake_hotbar(1920, 1080, 8, {8: (PICKAXE, GOLD), 2: (SWORD, DIAMOND)})
+                app._on_mouse("left", True)
+                self.assertTrue(self.wait_for(lambda: app.engine.tool))
+                self.assertEqual(app.tool_index, 0)
+                app._on_mouse("left", False)
+
+                # Schwert -> nicht eingeschraenkt
+                screen.screen = fake_hotbar(1920, 1080, 2, {8: (PICKAXE, GOLD), 2: (SWORD, DIAMOND)})
+                app._on_mouse("left", True)
+                self.assertTrue(self.wait_for(lambda: not app.engine.tool))
+                # waehrend gehalten wird auf leeren Platz gewechselt -> bleibt frei
+                screen.screen = fake_hotbar(1920, 1080, 5, {8: (PICKAXE, GOLD)})
+                time.sleep(0.3)
                 self.assertFalse(app.engine.tool)
+                # ... und auf die Spitzhacke -> wird erkannt, ohne loszulassen
+                screen.screen = fake_hotbar(1920, 1080, 8, {8: (PICKAXE, GOLD)})
+                self.assertTrue(self.wait_for(lambda: app.engine.tool))
+                app._on_mouse("left", False)
 
-                st = app.tools_action({"op": "delete", "slot": 3})
+                # Hotbar gar nicht zu sehen -> nie einschraenken
+                screen.screen = None
+                app._on_mouse("left", True)
+                self.assertTrue(self.wait_for(lambda: not app.engine.tool))
+                app._on_mouse("left", False)
+
+                st = app.tools_action({"op": "delete", "index": 0})
                 self.assertEqual(st["config"]["tools"], [])
-                self.assertEqual(app.tools_action({"op": "delete", "slot": 3}), {"error": "e_not_found"})
+                self.assertEqual(app.tools_action({"op": "delete", "index": 0}), {"error": "e_not_found"})
             finally:
-                app.engine.shutdown()
+                app.shutdown()
 
-    def test_short_click_does_not_learn(self):
+    def test_click_in_own_window_does_not_learn(self):
         with tempfile.TemporaryDirectory() as tmp:
             app = App(tmp, "web", demo=True, keep_alive=True)
+            app.backend.screen = fake_hotbar(1280, 720, 1, {1: (PICKAXE, IRON)})
+            app.backend.foreground = "AutoClicker 6"
             app.tools_action({"op": "learn"})
             app._on_mouse("left", True)
-            app._on_mouse("left", False)  # nur geklickt, nichts abgebaut
-            time.sleep(0.1)
+            app._on_mouse("left", False)
+            time.sleep(0.2)
             self.assertTrue(app.learning)
+            self.assertEqual(app.config.tools(), [])
             app.tools_action({"op": "cancel"})
             self.assertFalse(app.learning)
-            self.assertEqual(app.config.tools(), [])
 
 
 if __name__ == "__main__":

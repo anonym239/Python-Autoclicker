@@ -32,10 +32,11 @@ lässt sich der Hinweis wegklicken.
 | AFK-Farm | Klickt langsam weiter (1,6 CPS = Schwert-Cooldown) – oder hält die Maustaste **gedrückt**, z. B. zum Bäume- oder Steine-Abbauen |
 
 **Werkzeuge (Minecraft PvP / CPS-Boost):** Mit einer Spitzhacke kann man kein Bett abbauen, wenn der
-AutoClicker schnell klickt. Deshalb: **„Werkzeug anlernen“** drücken, im Spiel (z. B. Singleplayer) das
-Werkzeug nehmen und einen Block abbauen. Der AutoClicker merkt sich den Hotbar-Platz samt Bild vom Item.
-Ist das Werkzeug in der Hand, wird die Maustaste ganz normal gehalten – mit dem Schwert wird schnell geklickt.
-Lege deine Werkzeuge dafür immer auf denselben Platz (z. B. über den Hotbar-Manager bei BedWars).
+AutoClicker schnell klickt. Deshalb: **„Werkzeug anlernen“** drücken, im Spiel das Werkzeug in die Hand nehmen
+und einen Block abbauen (geht auch im Kreativmodus). Der AutoClicker erkennt das Item an der Hotbar und zeigt
+sein Bild an. Danach gilt – egal auf welchem Platz und aus welchem Material: Werkzeug in der Hand = Maustaste
+wird normal gehalten, alles andere (Schwert, leere Hand …) = schnelle Klicks. Klappt die Erkennung nicht,
+wird nie gebremst; die letzte Aufnahme liegt dann als `hotbar-aufnahme.png` im Einstellungsordner.
 
 **Sprache:** 24 Sprachen (u. a. Deutsch, English, Español, Français, Русский, Українська, Svenska, Suomi, Nederlands …) – unter **Einstellungen → Sprache**
 („Automatisch“ nimmt die Sprache von Windows).

@@ -14,10 +14,10 @@ class DemoBackend:
     has_global_input = False
 
     def __init__(self):
-        self.on_input = None
         self.clicks = 0
         self.down: set[str] = set()
         self.foreground = "Minecraft 1.21.4 (Demo)"
+        self.screen = None  # (breite, hoehe, BGRA, fensterhoehe) fuer grab_bottom
         self.beeps: list[str] = []
         self.timer_high = False
         self._lock = threading.Lock()
@@ -36,7 +36,7 @@ class DemoBackend:
         return self.foreground
 
     def grab_bottom(self, rows: int):
-        return None  # kein Bildschirm im Demo-Modus
+        return self.screen  # Tests koennen hier ein Bild hinlegen
 
     def set_timer_resolution(self, high: bool) -> None:
         self.timer_high = high

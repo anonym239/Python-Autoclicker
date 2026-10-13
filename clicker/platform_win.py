@@ -120,6 +120,10 @@ user32.GetClientRect.argtypes = [wt.HWND, ctypes.POINTER(wt.RECT)]
 user32.GetClientRect.restype = wt.BOOL
 user32.ClientToScreen.argtypes = [wt.HWND, ctypes.POINTER(wt.POINT)]
 user32.ClientToScreen.restype = wt.BOOL
+user32.GetWindowRect.argtypes = [wt.HWND, ctypes.POINTER(wt.RECT)]
+user32.GetWindowRect.restype = wt.BOOL
+user32.PrintWindow.argtypes = [wt.HWND, wt.HDC, wt.UINT]
+user32.PrintWindow.restype = wt.BOOL
 user32.GetDC.argtypes = [wt.HWND]
 user32.GetDC.restype = wt.HDC
 user32.ReleaseDC.argtypes = [wt.HWND, wt.HDC]
@@ -153,7 +157,6 @@ WM_QUIT, WM_APP = 0x0012, 0x8000
 WM_SET_MOUSE_HOOK = WM_APP + 1
 WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP = 0x0100, 0x0101, 0x0104, 0x0105
 WM_MOUSEMOVE = 0x0200
-WM_MOUSEWHEEL = 0x020A
 MOUSE_MSGS = {
     0x0201: ("left", True), 0x0202: ("left", False),
     0x0204: ("right", True), 0x0205: ("right", False),
@@ -179,6 +182,13 @@ def _make_inputs(*flags: int):
         arr[i].type = INPUT_MOUSE
         arr[i].u.mi = MOUSEINPUT(0, 0, 0, f, 0, MAGIC)
     return arr
+
+
+def _blank(data: bytes) -> bool:
+    """Leere Aufnahme (alles eine Farbe, meist schwarz)?"""
+    step = max(4, (len(data) // 4 // 400) * 4)
+    first = data[0:3]
+    return all(data[i:i + 3] == first for i in range(0, len(data) - 3, step))
 
 
 def _window_text(hwnd) -> str:
@@ -228,15 +238,7 @@ class _HookThread(threading.Thread):
         return user32.CallNextHookEx(None, n_code, w_param, l_param)
 
     def _ms_callback(self, n_code, w_param, l_param):
-        if n_code == 0 and w_param == WM_MOUSEWHEEL:
-            try:
-                ms = ctypes.cast(l_param, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
-                delta = ctypes.c_short((ms.mouseData >> 16) & 0xFFFF).value
-                if delta:
-                    self._sink.put_nowait(("w", "up" if delta > 0 else "down", True))
-            except Exception:
-                pass
-        elif n_code == 0 and w_param != WM_MOUSEMOVE:
+        if n_code == 0 and w_param != WM_MOUSEMOVE:
             info = MOUSE_MSGS.get(w_param)
             if info is not None:
                 try:
@@ -290,7 +292,6 @@ class WindowsBackend:
     has_global_input = True
 
     def __init__(self):
-        self.on_input = None  # (kind "k"|"m"|"w", name, down) – roh, fuer den Hotbar-Platz
         self._both = {b: _make_inputs(*f) for b, f in BUTTON_FLAGS.items()}
         self._down = {b: _make_inputs(f[0]) for b, f in BUTTON_FLAGS.items()}
         self._up = {b: _make_inputs(f[1]) for b, f in BUTTON_FLAGS.items()}
@@ -333,6 +334,8 @@ class WindowsBackend:
     def grab_bottom(self, rows: int):
         """Unteren Rand des Vordergrundfensters abfotografieren (fuer die Hotbar).
 
+        Erst vom Bildschirm (schnell); ist das Bild leer (z. B. exklusiver
+        Vollbildmodus), direkt aus dem Fenster (PrintWindow).
         -> (breite, hoehe_ausschnitt, BGRA-Bytes von oben, fenster_hoehe) oder None."""
         hwnd = user32.GetForegroundWindow()
         if not hwnd:
@@ -344,25 +347,66 @@ class WindowsBackend:
         h = min(rows, ch)
         if w <= 0 or h <= 0:
             return None
-        pt = wt.POINT(0, ch - h)
-        user32.ClientToScreen(hwnd, ctypes.byref(pt))
+        origin = wt.POINT(0, 0)
+        user32.ClientToScreen(hwnd, ctypes.byref(origin))
+        data = self._blit(None, origin.x, origin.y + ch - h, w, h)
+        if data is None or _blank(data):
+            data = self._print_window(hwnd, origin, w, ch, h) or data
+        return (w, h, data, ch) if data else None
+
+    @staticmethod
+    def _bitmap_bytes(mem, bmp, w, h):
+        info = BITMAPINFOHEADER(ctypes.sizeof(BITMAPINFOHEADER), w, -h, 1, 32, 0, 0, 0, 0, 0, 0)
+        buf = ctypes.create_string_buffer(w * h * 4)
+        if gdi32.GetDIBits(mem, bmp, 0, h, buf, ctypes.byref(info), 0) != h:  # DIB_RGB_COLORS
+            return None
+        return buf.raw
+
+    def _blit(self, _hwnd, x, y, w, h):
         screen = user32.GetDC(None)
         mem = gdi32.CreateCompatibleDC(screen)
         bmp = gdi32.CreateCompatibleBitmap(screen, w, h)
         old = gdi32.SelectObject(mem, bmp)
         try:
-            if not gdi32.BitBlt(mem, 0, 0, w, h, screen, pt.x, pt.y, 0x00CC0020):  # SRCCOPY
+            if not gdi32.BitBlt(mem, 0, 0, w, h, screen, x, y, 0x00CC0020):  # SRCCOPY
                 return None
-            info = BITMAPINFOHEADER(ctypes.sizeof(BITMAPINFOHEADER), w, -h, 1, 32, 0, 0, 0, 0, 0, 0)
-            buf = ctypes.create_string_buffer(w * h * 4)
-            if gdi32.GetDIBits(mem, bmp, 0, h, buf, ctypes.byref(info), 0) != h:  # DIB_RGB_COLORS
-                return None
-            return w, h, buf.raw, ch
+            return self._bitmap_bytes(mem, bmp, w, h)
         finally:
             gdi32.SelectObject(mem, old)
             gdi32.DeleteObject(bmp)
             gdi32.DeleteDC(mem)
             user32.ReleaseDC(None, screen)
+
+    def _print_window(self, hwnd, origin, w, ch, h):
+        """Ganzes Fenster per PrintWindow (PW_RENDERFULLCONTENT) und den unteren Rand ausschneiden."""
+        wr = wt.RECT()
+        if not user32.GetWindowRect(hwnd, ctypes.byref(wr)):
+            return None
+        ww, wh = wr.right - wr.left, wr.bottom - wr.top
+        ox, oy = origin.x - wr.left, origin.y - wr.top  # Client-Bereich im Fenster
+        if ww <= 0 or wh <= 0 or ox < 0 or oy < 0:
+            return None
+        screen = user32.GetDC(None)
+        mem = gdi32.CreateCompatibleDC(screen)
+        bmp = gdi32.CreateCompatibleBitmap(screen, ww, wh)
+        old = gdi32.SelectObject(mem, bmp)
+        try:
+            if not user32.PrintWindow(hwnd, mem, 2):
+                return None
+            full = self._bitmap_bytes(mem, bmp, ww, wh)
+        finally:
+            gdi32.SelectObject(mem, old)
+            gdi32.DeleteObject(bmp)
+            gdi32.DeleteDC(mem)
+            user32.ReleaseDC(None, screen)
+        if not full:
+            return None
+        top = oy + ch - h
+        out = bytearray()
+        for y in range(top, top + h):
+            i = (y * ww + ox) * 4
+            out += full[i:i + w * 4]
+        return bytes(out) if len(out) == w * h * 4 else None
 
     def _find_windows(self, title_part: str):
         found = []
@@ -463,15 +507,7 @@ class WindowsBackend:
             if item is None:
                 return
             kind, name, down = item
-            cb = self.on_input
-            if cb:
-                try:
-                    cb(kind, name, down)
-                except Exception:
-                    pass
             try:
-                if kind == "w":
-                    continue
                 if kind == "k":
                     matcher.key_event(name, down)
                 else:
