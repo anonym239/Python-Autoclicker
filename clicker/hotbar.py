@@ -3,12 +3,16 @@
 Idee: Mit Werkzeug (Spitzhacke, Axt, Schere ...) in der Hand soll die Maustaste
 normal gehalten werden – sonst kann man z. B. bei BedWars das Bett nicht abbauen.
 Minecraft verraet anderen Programmen nicht, was man in der Hand haelt (und das
-Spiel auszulesen waere ein Hack). Deshalb:
+Spiel auszulesen waere ein Hack). Deshalb wird die Hotbar auf dem Bildschirm
+angeschaut:
 
-- SlotTracker merkt sich den gewaehlten Hotbar-Platz (Tasten 1–9, Mausrad).
-- analyze() erkennt den Platz zusaetzlich auf einem Bildschirmausschnitt der
-  Hotbar (heller Auswahlrahmen) und schneidet das Item als kleines Bild aus.
-- Beim "Anlernen" wird der Platz des Werkzeugs gespeichert, samt Bild als Icon.
+- analyze() findet die Hotbar und den gewaehlten Platz (heller Auswahlrahmen),
+  fuer jede GUI-Groesse.
+- item_sample() schneidet das Item aus dem Platz aus (16x16) und trennt es vom
+  Hintergrund -> Umriss (Maske) + Bild mit transparentem Hintergrund.
+- Beim Anlernen wird der Umriss gespeichert. Spaeter zaehlt jedes Item mit
+  gleichem Umriss als Werkzeug – egal auf welchem Platz, egal welches Material
+  (Holz-, Eisen-, Diamant-Spitzhacke haben denselben Umriss).
 """
 
 from __future__ import annotations
@@ -21,50 +25,10 @@ SLOTS = 9
 HOTBAR_W, HOTBAR_H = 182, 22  # Minecraft-GUI-Einheiten
 CAPTURE_GUI_H = 24            # so viel vom unteren Rand wird gebraucht (Auswahlrahmen ragt 1 heraus)
 MAX_SCALE = 8
-
-
-class SlotTracker:
-    """Gewaehlter Hotbar-Platz 1–9 aus Tasten und Mausrad.
-
-    Bei offenem Chat / Inventar aendern Zifferntasten und Mausrad den Platz nicht."""
-
-    def __init__(self):
-        self.slot = 1
-        self._screen = ""  # "" | "chat" | "inv"
-
-    def key(self, name: str) -> bool:
-        """Taste gedrueckt. -> True, wenn sich der Platz geaendert hat."""
-        if self._screen == "chat":
-            if name in ("enter", "esc"):
-                self._screen = ""
-            return False
-        if self._screen == "inv":
-            if name in ("e", "esc"):
-                self._screen = ""
-            return False
-        if name in ("t", "slash"):
-            self._screen = "chat"
-        elif name == "e":
-            self._screen = "inv"
-        elif len(name) == 1 and name in "123456789":
-            return self._set(int(name))
-        return False
-
-    def wheel(self, up: bool) -> bool:
-        """Mausrad: hoch = Platz nach links, runter = nach rechts (wie in Minecraft)."""
-        if self._screen:
-            return False
-        return self._set((self.slot - 1 + (-1 if up else 1)) % SLOTS + 1)
-
-    def sync(self, slot: int) -> bool:
-        """Platz wurde auf dem Bildschirm erkannt (dann ist auch kein Inventar offen)."""
-        self._screen = ""
-        return self._set(slot)
-
-    def _set(self, slot: int) -> bool:
-        changed = slot != self.slot
-        self.slot = slot
-        return changed
+ITEM = 16                     # Items sind 16x16 GUI-Pixel
+MATCH_ROWS = 12               # untere Zeilen nicht vergleichen (Haltbarkeitsbalken, Anzahl)
+MIN_ITEM_PIXELS = 10          # weniger = leerer Platz
+MATCH_IOU = 0.72              # so aehnlich muss der Umriss sein
 
 
 def auto_gui_scale(width: int, height: int) -> int:
@@ -99,6 +63,10 @@ def _luma(px) -> float:
     return 0.299 * r + 0.587 * g + 0.114 * b
 
 
+def _dist(a, b) -> int:
+    return abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2])
+
+
 def _layout(width: int, height: int, scale: int):
     """-> (x0, y0) der Hotbar in Pixeln (wie Minecraft sie zeichnet)."""
     gw, gh = -(-width // scale), -(-height // scale)  # aufgerundet
@@ -130,7 +98,7 @@ def _ring_brightness(shot: Shot, x0: int, y0: int, slot: int, s: int) -> float:
 
 
 def analyze(shot: Shot, width: int):
-    """Hotbar suchen. -> dict(scale, slot 1–9, confidence) oder None.
+    """Hotbar suchen. -> dict(scale, slot 1–9, confidence, x0, y0) oder None.
 
     Probiert alle GUI-Groessen; gewaehlt ist der Platz mit dem hellsten Rahmen,
     wenn er sich deutlich von den anderen abhebt."""
@@ -143,41 +111,115 @@ def analyze(shot: Shot, width: int):
         order = sorted(range(SLOTS), key=lambda i: rings[i], reverse=True)
         top, second = rings[order[0]], rings[order[1]]
         conf = top - second
-        if top >= 150 and conf >= 45 and (best is None or conf > best["confidence"]):
+        if top >= 130 and conf >= 35 and (best is None or conf > best["confidence"]):
             best = {"scale": s, "slot": order[0] + 1, "confidence": round(conf, 1), "x0": x0, "y0": y0}
     return best
 
 
-def item_pixels(shot: Shot, found: dict, slot: int):
-    """Das Item im Platz als 16x16 RGB-Pixel (Zeilen)."""
+class Item:
+    """Item aus einem Hotbar-Platz: Pixel, Umriss (Maske) und Hintergrundfarbe."""
+
+    def __init__(self, rows, mask, bg):
+        self.rows = rows      # 16x16 (r, g, b)
+        self.mask = mask      # 256 bool, zeilenweise
+        self.bg = bg
+
+    @property
+    def size(self) -> int:
+        return sum(self.mask)
+
+    @property
+    def empty(self) -> bool:
+        return self.size < MIN_ITEM_PIXELS
+
+    def mask_hex(self) -> str:
+        bits = 0
+        for i, on in enumerate(self.mask):
+            if on:
+                bits |= 1 << i
+        return f"{bits:064x}"
+
+    def icon(self) -> str:
+        """Bild mit durchsichtigem Hintergrund als data:-URL."""
+        rgba = [[(*px, 255 if self.mask[y * ITEM + x] else 0) for x, px in enumerate(row)]
+                for y, row in enumerate(self.rows)]
+        return png_data_url(rgba)
+
+
+def item_sample(shot: Shot, found: dict, slot: int) -> Item:
+    """Item im Platz ausschneiden. Der Hintergrund ist der Rand direkt um das Item
+    (dort liegt nie ein Item-Pixel); alles, was sich davon abhebt, gehoert zum Item."""
     s, x0, y0 = found["scale"], found["x0"], found["y0"]
     left = x0 + (3 + (slot - 1) * 20) * s
     top = y0 + 3 * s
-    rows = []
-    for gy in range(16):
-        row = []
-        for gx in range(16):
-            row.append(shot.rgb(left + gx * s + s // 2, top + gy * s + s // 2) or (0, 0, 0))
-        rows.append(row)
-    return rows
+    h = s // 2
+
+    def at(gx, gy):
+        return shot.rgb(left + gx * s + h, top + gy * s + h) or (0, 0, 0)
+
+    ring = [at(i, -1) for i in range(-1, 17)] + [at(i, 16) for i in range(-1, 17)]
+    ring += [at(-1, i) for i in range(ITEM)] + [at(16, i) for i in range(ITEM)]
+    bg = tuple(sorted(c[k] for c in ring)[len(ring) // 2] for k in range(3))
+    rows = [[at(gx, gy) for gx in range(ITEM)] for gy in range(ITEM)]
+    mask = [_dist(rows[y][x], bg) > 45 for y in range(ITEM) for x in range(ITEM)]
+    return Item(rows, mask, bg)
 
 
-def looks_empty(rows) -> bool:
-    """Leerer Platz? (fast keine Farbunterschiede)"""
-    lum = [_luma(p) for row in rows for p in row]
-    mean = sum(lum) / len(lum)
-    return sum(abs(v - mean) for v in lum) / len(lum) < 6
+def mask_from_hex(text: str):
+    try:
+        bits = int(text, 16)
+    except (TypeError, ValueError):
+        return None
+    return [bool(bits >> i & 1) for i in range(ITEM * ITEM)]
+
+
+def similarity(a, b) -> float:
+    """Wie aehnlich sind zwei Umrisse? (0–1, ohne die unteren Zeilen)"""
+    n = MATCH_ROWS * ITEM
+    both = sum(1 for i in range(n) if a[i] and b[i])
+    either = sum(1 for i in range(n) if a[i] or b[i])
+    return both / either if either else 0.0
+
+
+def best_match(item: Item, masks) -> int:
+    """Index des passenden angelernten Werkzeugs oder -1."""
+    if item.empty:
+        return -1
+    best, best_i = 0.0, -1
+    for i, m in enumerate(masks):
+        if m is None:
+            continue
+        sim = similarity(item.mask, m)
+        if sim > best:
+            best, best_i = sim, i
+    return best_i if best >= MATCH_IOU else -1
 
 
 def png_data_url(rows) -> str:
-    """Kleines PNG (RGB) als data:-URL – ohne Zusatzmodule."""
+    """Kleines PNG (RGB oder RGBA) als data:-URL – ohne Zusatzmodule."""
+    return "data:image/png;base64," + base64.b64encode(png_bytes(rows)).decode("ascii")
+
+
+def png_bytes(rows) -> bytes:
     h, w = len(rows), len(rows[0])
+    channels = len(rows[0][0])
     raw = b"".join(b"\x00" + bytes(c for px in row for c in px) for row in rows)
 
     def chunk(kind: bytes, data: bytes) -> bytes:
         return (struct.pack(">I", len(data)) + kind + data
                 + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF))
 
-    png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
-           + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
-    return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+    color = 6 if channels == 4 else 2
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, color, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b""))
+
+
+def shot_png(shot: Shot) -> bytes:
+    """Ganzer Ausschnitt als PNG (zur Fehlersuche: was hat der AutoClicker gesehen?)."""
+    px = shot.pixels
+    rows = []
+    for y in range(shot.h):
+        i = y * shot.w * 4
+        line = px[i:i + shot.w * 4]
+        rows.append([(line[x + 2], line[x + 1], line[x]) for x in range(0, len(line), 4)])
+    return png_bytes(rows)

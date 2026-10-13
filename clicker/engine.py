@@ -77,6 +77,7 @@ class ClickEngine:
         self._boost_due: float | None = None  # Zeitpunkt des naechsten Extra-Klicks
         self._holding: str | None = None   # Taste, die gerade dauerhaft gedrueckt wird
         self._tool = False                  # Werkzeug in der Hand -> nicht klicken
+        self._tool_check_until = 0.0        # kurz warten, bis die Hotbar angeschaut ist
         self._state = "idle"
         self._reason = ""
         self._stop_reason = ""
@@ -178,11 +179,18 @@ class ClickEngine:
                     self._boost_due = self._clock() + random.uniform(0.012, 0.024)
         self._wake.set()
 
+    def begin_tool_check(self, seconds: float = 0.12) -> None:
+        """Maustaste gedrueckt: kurz nicht klicken, bis feststeht, was in der Hand ist."""
+        with self._lock:
+            self._tool_check_until = self._clock() + seconds
+
     def set_tool(self, active: bool) -> None:
-        """Werkzeug in die Hand genommen / weggelegt (Hotbar-Platz gewechselt)."""
+        """Ergebnis der Hotbar-Pruefung: Werkzeug in der Hand oder nicht."""
         press = None
         with self._lock:
+            self._tool_check_until = 0.0
             if active == self._tool:
+                self._wake.set()
                 return
             self._tool = active
             c = self.cfg
@@ -266,8 +274,11 @@ class ClickEngine:
             return "countdown", ""
         if not self._armed:
             return "idle", ""
-        if c.mode in ("hold_mouse", "boost") and self._tool:
-            return "ready", "tool"  # Werkzeug: Maustaste normal halten, nicht klicken
+        if c.mode in ("hold_mouse", "boost"):
+            if self._tool:
+                return "ready", "tool"  # Werkzeug: Maustaste normal halten, nicht klicken
+            if now < self._tool_check_until:
+                return "ready", "check"
         if c.mode == "hold_mouse" and c.button not in self._mouse_held:
             return "ready", "mouse"
         if c.mode == "boost" and (not self._boost_owed or c.button in self._mouse_held):

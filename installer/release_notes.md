@@ -1,4 +1,4 @@
-**Neu in dieser Version:** Werkzeuge anlernen für Minecraft PvP und CPS-Boost – mit Spitzhacke, Axt & Co. in der Hand wird die Maustaste normal gehalten (z. B. Bett abbauen bei BedWars), mit dem Schwert wird schnell geklickt. Außerdem viele neue Sprachen (Einstellungen → Sprache).
+**Neu in dieser Version:** Werkzeuge werden jetzt am Item erkannt statt am Hotbar-Platz – egal auf welchem Platz und aus welchem Material. Leere Hand oder Schwert = schnelle Klicks. Anlernen klappt auch im Kreativmodus, und das Icon ist das echte Item-Bild. Werkzeuge aus 6.6 bitte einmal neu anlernen.
 
 **Download:** `AutoClicker-Setup-….exe` herunterladen und starten.
 Wer AutoClicker schon installiert hat, bekommt das Update auch direkt in der App angezeigt.

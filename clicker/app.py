@@ -15,7 +15,7 @@ from . import APP_NAME, VERSION, WINDOW_TITLE
 from .backend import create_backend
 from .config import PRESET_ORDER, PRESETS, Config, user_data_dir
 from .engine import ClickEngine
-from .hotbar import CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, analyze, item_pixels, looks_empty, png_data_url
+from .hotbar import CAPTURE_GUI_H, MAX_SCALE, Shot, analyze, best_match, item_sample, mask_from_hex, shot_png
 from .keys import HotkeyMatcher
 from .server import WebServer
 from .updater import SNOOZE_SECONDS, Updater
@@ -23,7 +23,7 @@ from .window import open_app_window, run_native_window
 
 RECORD_TIMEOUT = 15.0
 LEARN_TIMEOUT = 120.0   # so lange wartet "Werkzeug anlernen" auf das Abbauen im Spiel
-LEARN_HOLD = 0.35       # so lange muss die Maustaste gehalten werden (= Block abbauen)
+TOOL_RECHECK = 0.12     # bei gedrueckter Maustaste so oft nachschauen, was in der Hand ist
 TOOL_MODES = ("hold_mouse", "boost")
 NEW = "new"  # Aufnahme-Ziel fuer einen neuen Hotkey
 
@@ -48,12 +48,14 @@ class App:
         self.keep_alive = keep_alive          # Fenster schliessen beendet NICHT (Tests/--no-window)
         self.rev = 1                          # Konfig-Revision fuer die Oberflaeche
         self.recording = None                 # None | NEW | Index des Hotkeys
-        self.slots = SlotTracker()            # gewaehlter Hotbar-Platz im Spiel
         self.learning = False                 # "Werkzeug anlernen" laeuft
         self._learn_deadline = 0.0
-        self._learn_press: float | None = None
-        self._grab_busy = False
-        self.backend.on_input = self._on_raw_input
+        self._learn_press = False
+        self._tool_masks: list = []           # Umrisse der angelernten Werkzeuge
+        self._tool_btn_down = False
+        self._tool_kick = threading.Event()
+        self.tool_index = -1                  # welches Werkzeug gerade in der Hand ist
+        self.hotbar_seen = None               # None = noch nicht geschaut
         self._record_deadline = 0.0
         self.notice = None
         self._notice_id = 0
@@ -87,6 +89,7 @@ class App:
         if not self.keep_alive:  # nicht in Tests / --no-window
             self.updater.run_checks(self.quit_event)
         threading.Thread(target=self._housekeeping, name="housekeeping", daemon=True).start()
+        threading.Thread(target=self._tool_loop, name="tools", daemon=True).start()
 
     def shutdown(self) -> None:
         if self._shut:
@@ -141,7 +144,10 @@ class App:
         self.matcher.set_bindings({str(i): h["key"] for i, h in enumerate(cfg.hotkeys())})
         need_mouse = cfg.mode() in TOOL_MODES or self.matcher.wants_mouse_buttons() or self.learning
         self.backend.set_mouse_hook(need_mouse)
-        self._update_tool()
+        self._tool_masks = [mask_from_hex(t["mask"]) for t in cfg.tools()]
+        if not self._tools_matter():
+            self.tool_index = -1
+            self.engine.set_tool(False)
         self.rev += 1
         if initial:
             threading.Thread(target=self._window_setup, daemon=True).start()
@@ -186,9 +192,11 @@ class App:
     def _on_mouse(self, button: str, down: bool) -> None:
         if self.learning and button == "left":
             self._learn_mouse(down)
-        elif down and button == self.config.current()["button"] and self._tools_matter():
-            self._update_tool()      # sofort nach dem gemerkten Platz entscheiden ...
-            self._resync_slot()      # ... und auf dem Bildschirm nachpruefen
+        elif button == self.config.current()["button"] and self._tools_matter():
+            self._tool_btn_down = down
+            if down:
+                self.engine.begin_tool_check()  # erst schauen, was in der Hand ist
+                self._tool_kick.set()
         self.engine.set_mouse_held(button, down)
 
     # ─── Werkzeuge (Hotbar) ─────────────────────────────
@@ -201,20 +209,7 @@ class App:
         return bool(title) and WINDOW_TITLE.lower() not in title
 
     def _tools_matter(self) -> bool:
-        return self.config.mode() in TOOL_MODES and bool(self.config.tool_slots())
-
-    def _update_tool(self) -> None:
-        self.engine.set_tool(self._tools_matter() and self.slots.slot in self.config.tool_slots())
-
-    def _on_raw_input(self, kind: str, name: str, down: bool) -> None:
-        """Rohe Tasten/Mausrad: gewaehlten Hotbar-Platz mitverfolgen."""
-        if not down or kind not in ("k", "w") or not (self._tools_matter() or self.learning):
-            return
-        if not self._game_in_front():
-            return
-        changed = self.slots.key(name) if kind == "k" else self.slots.wheel(name == "up")
-        if changed:
-            self._update_tool()
+        return self.config.mode() in TOOL_MODES and bool(self._tool_masks)
 
     def _grab_hotbar(self):
         data = self.backend.grab_bottom(CAPTURE_GUI_H * MAX_SCALE)
@@ -224,69 +219,84 @@ class App:
         shot = Shot(w, h, pixels, client_h)
         return shot, analyze(shot, w)
 
-    def _resync_slot(self) -> None:
-        """Hotbar-Platz auf dem Bildschirm erkennen (im Hintergrund, max. einer gleichzeitig)."""
-        if self._grab_busy:
-            return
-        self._grab_busy = True
+    def _check_tool(self) -> None:
+        """Was ist gerade in der Hand? Nur ein erkanntes Werkzeug bremst den Klicker."""
+        index = -1
+        try:
+            shot, found = self._grab_hotbar() if self._game_in_front() else (None, None)
+        except Exception:
+            shot, found = None, None
+        self.hotbar_seen = found is not None
+        if found:
+            index = best_match(item_sample(shot, found, found["slot"]), self._tool_masks)
+        self.tool_index = index
+        self.engine.set_tool(index >= 0 and self._tools_matter())
 
-        def work():
-            try:
-                _shot, found = self._grab_hotbar()
-                if found and self.slots.sync(found["slot"]):
-                    self._update_tool()
-            except Exception:
-                pass
-            finally:
-                self._grab_busy = False
-
-        threading.Thread(target=work, name="hotbar", daemon=True).start()
+    def _tool_loop(self) -> None:
+        """Solange die Maustaste gedrueckt ist, regelmaessig nachschauen (Platz gewechselt?)."""
+        while not self.quit_event.is_set():
+            if not self._tool_kick.wait(0.5):
+                continue
+            self._tool_kick.clear()
+            self._check_tool()
+            while self._tool_btn_down and not self.quit_event.is_set():
+                if self._tool_kick.wait(TOOL_RECHECK):
+                    break
+                self._check_tool()
 
     def _learn_mouse(self, down: bool) -> None:
+        # Klick im Spiel (Druecken UND Loslassen dort) – im Kreativmodus ist der Block sofort weg
         if down:
-            self._learn_press = time.monotonic() if self._game_in_front() else None
-            return
-        start, self._learn_press = self._learn_press, None
-        if start is not None and time.monotonic() - start >= LEARN_HOLD:
+            self._learn_press = self._game_in_front()
+        elif self._learn_press and self._game_in_front():
+            self._learn_press = False
             threading.Thread(target=self._finish_learning, name="learn", daemon=True).start()
 
     def _finish_learning(self) -> None:
-        """Block wurde abgebaut: Platz (+ Bild vom Item) als Werkzeug speichern."""
+        """Block wurde abgebaut: Item in der Hand anschauen und als Werkzeug speichern."""
+        time.sleep(0.05)
         try:
             shot, found = self._grab_hotbar()
         except Exception:
             shot, found = None, None
-        slot = found["slot"] if found else self.slots.slot
-        self.slots.sync(slot)
-        icon = ""
-        if found:
-            try:
-                rows = item_pixels(shot, found, slot)
-                if not looks_empty(rows):
-                    icon = png_data_url(rows)
-            except Exception:
-                icon = ""
+        if shot is not None:
+            self._save_debug_shot(shot)
+        item = item_sample(shot, found, found["slot"]) if found else None
         with self._lock:
             if not self.learning:
                 return
+            if item is None:
+                self._notify("e_hotbar")       # Anlernen laeuft weiter – nochmal versuchen
+                return
+            if item.empty:
+                self._notify("e_tool_empty")
+                return
             self.learning = False
-            self.config.learn_tool(slot, icon)
+            self.config.learn_tool(item.mask_hex(), item.icon(), best_match(item, self._tool_masks))
             self._notify("n_tool_saved")
             self._apply()
             self._save_soon()
+
+    def _save_debug_shot(self, shot) -> None:
+        """Letzte Aufnahme speichern – falls die Erkennung bei jemandem nicht klappt."""
+        try:
+            with open(os.path.join(self.folder, "hotbar-aufnahme.png"), "wb") as f:
+                f.write(shot_png(shot))
+        except Exception:
+            pass
 
     def tools_action(self, body: dict):
         op = body.get("op")
         if op == "learn":
             self.engine.stop("manual")  # beim Anlernen nicht klicken
             self.learning = True
-            self._learn_press = None
+            self._learn_press = False
             self._learn_deadline = time.monotonic() + LEARN_TIMEOUT
         elif op == "cancel":
             self.learning = False
         elif op == "delete":
-            slot = body.get("slot")
-            if not isinstance(slot, int) or not self.config.delete_tool(slot):
+            index = body.get("index")
+            if not isinstance(index, int) or not self.config.delete_tool(index):
                 return {"error": "e_not_found"}
             self._save_soon()
         else:
@@ -325,7 +335,8 @@ class App:
             "engine": self.engine.status(),
             "recording": self.recording,
             "learning": self.learning,
-            "slot": self.slots.slot,
+            "tool_index": self.tool_index,
+            "hotbar": self.hotbar_seen,
             "notice": self.notice if self.notice and time.time() - self.notice["at"] < 6 else None,
             "update": self.update_state(),
         }
