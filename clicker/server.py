@@ -111,6 +111,10 @@ class WebServer:
                 query = parse_qs(url.query)
                 if not _is_loopback(self.client_address[0]):
                     return self._send(403, b"Nur auf diesem PC", "text/plain; charset=utf-8")
+                if url.path == "/back":  # Knopf "◀ AutoClicker" auf einer Webseite im Programmfenster
+                    ok = server.app.back_to_app()
+                    return self._send(200 if ok else 404, b"<!doctype html><meta charset=utf-8>",
+                                      "text/html; charset=utf-8")
                 if url.path.startswith("/api/"):
                     if url.path == "/api/ping":
                         return self._json(server.app.ping())

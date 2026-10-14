@@ -6,7 +6,7 @@ window.AC_MOCK = (() => {
   const PRESETS = __PRESETS__;
 
   const cfg = JSON.parse(JSON.stringify(CONFIG));
-  let update = { version: "6.19", status: "available", progress: 0, error: "", can_install: true };
+  let update = { version: "6.20", status: "available", progress: 0, error: "", can_install: true };
   let rev = 1, recording = null, recordUntil = 0, notice = null, noticeId = 0;
   let learning = false, slot = 1, learnPress = null;
   cfg.kits = cfg.kits || [{ name: "Kit 1", tools: [] }];
@@ -208,6 +208,7 @@ window.AC_MOCK = (() => {
       }
     } else if (name === "home") {
       // Vorschau: Seiten in einem neuen Tab, Programme gehen hier nicht
+      if (b.op === "signin") { window.open("https://accounts.google.com/", "_blank", "noopener"); return { ok: true }; }
       if (b.op === "open") {
         const p = Number.isInteger(b.index) ? cfg.pins[b.index] : null;
         const text = String(b.text || "").trim();

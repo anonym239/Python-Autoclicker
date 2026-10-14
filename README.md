@@ -34,7 +34,9 @@ lässt sich der Hinweis wegklicken.
 **Home:** Beim ersten Start und nach jedem Update öffnet sich das Home-Menü (auch über „Home“ links oben).
 - **Spiel wählen:** Minecraft, Roblox, Terraria, Cookie Clicker oder „Anderes Spiel“. Außerhalb von Minecraft heißen die
   Modi neutral (z. B. „PvP“) und die Werkzeug-Erkennung ist aus – sie kennt nur die Minecraft-Hotbar.
-- **Suche:** Adresse (z. B. `twitch.tv`) oder Suchbegriff eingeben → öffnet sich in einem eigenen AutoClicker-Fenster.
+- **Suche:** Adresse (z. B. `twitch.tv`) oder Suchbegriff eingeben → öffnet sich direkt im AutoClicker-Fenster,
+  unten links führt „◀ AutoClicker“ zurück. **Anmelden** (oben rechts) meldet dich bei Google an – das gilt dann
+  auch für YouTube & Co.
 - **Angepinnt:** Webseiten oder Programme (z. B. `spotify:` oder `C:\Spiele\Spiel.exe`) mit einem Klick öffnen.
   Ist das Programm installiert (Spotify, Discord), startet das Programm, sonst die Webseite. Anmeldungen bleiben
   lokal auf dem PC (WebView2-Profil unter `%LOCALAPPDATA%\AutoClicker`) – kein Konto, kein API-Key, keine Cloud.

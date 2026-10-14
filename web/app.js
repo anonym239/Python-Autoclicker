@@ -198,7 +198,7 @@
     renderHome();
     if (!homeChecked) {  // erster Start oder neue Version -> Home-Menue (Spiel waehlen)
       homeChecked = true;
-      if (!g.game || g.home_version !== INFO.version) {
+      if (!g.game || g.home_version !== INFO.version || location.hash === "#home") {  // #home = zurueck von einer Webseite
         openHome();
         sendGeneral({ home_version: INFO.version });
       }
@@ -367,13 +367,24 @@
 
   // ─── Home-Menue ─────────────────────────────────────────
   // Spiele: Name, Bild, Farbe. Nur Minecraft hat Werkzeug-Erkennung und eigene Modus-Namen.
+  // site = offizielle Seite -> deren echtes Icon (ohne Internet: das Emoji)
   const GAMES = {
-    minecraft: { name: "Minecraft", icon: "⛏️", color: "#5d9c3a", sub: "game_sub_mc" },
-    roblox: { name: "Roblox", icon: "🎮", color: "#e2231a", sub: "game_sub" },
-    terraria: { name: "Terraria", icon: "🌳", color: "#3a7bd5", sub: "game_sub" },
-    cookie: { name: "Cookie Clicker", icon: "🍪", color: "#b5763b", sub: "game_sub_cookie" },
+    minecraft: { name: "Minecraft", icon: "⛏️", site: "minecraft.net", color: "#5d9c3a", sub: "game_sub_mc" },
+    roblox: { name: "Roblox", icon: "🎮", site: "roblox.com", color: "#e2231a", sub: "game_sub" },
+    terraria: { name: "Terraria", icon: "🌳", site: "terraria.org", color: "#3a7bd5", sub: "game_sub" },
+    cookie: { name: "Cookie Clicker", icon: "🍪", site: "orteil.dashnet.org", color: "#b5763b", sub: "game_sub_cookie" },
     other: { name: "", icon: "🖱️", color: "#6b6b6b", sub: "game_sub" },
   };
+  // Seiten-Icon in guter Aufloesung; klappt das nicht, das kleine Icon, sonst fallback()
+  function siteIcon(host, fallback) {
+    const img = document.createElement("img");
+    img.alt = "";
+    const urls = [`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`,
+      `https://icons.duckduckgo.com/ip3/${encodeURIComponent(host)}.ico`];
+    img.onerror = () => { if (urls.length) img.src = urls.shift(); else { img.remove(); fallback(); } };
+    img.src = urls.shift();
+    return img;
+  }
   const gameName = (id) => (id === "other" ? t("game_other") : (GAMES[id] || {}).name || id);
   let homeOpen = false, homeChecked = false;
   function openHome() {
@@ -406,12 +417,8 @@
       icon.className = "pin-icon";
       const letter = () => { icon.textContent = p.name.slice(0, 1).toUpperCase(); icon.style.background = `hsl(${hue(p.name)} 55% 45%)`; };
       const host = p.url ? hostOf(p.url) : "";
-      if (host) {  // kleines Seiten-Icon; ohne Internet einfach der Anfangsbuchstabe
-        const img = document.createElement("img");
-        img.alt = ""; img.src = `https://icons.duckduckgo.com/ip3/${host}.ico`;
-        img.onerror = () => { img.remove(); letter(); };
-        icon.appendChild(img);
-      } else letter();
+      if (host) icon.appendChild(siteIcon(host, letter));  // ohne Internet: Anfangsbuchstabe
+      else letter();
       const name = document.createElement("span");
       name.className = "pin-name"; name.textContent = p.name;
       const del = document.createElement("span");
@@ -438,8 +445,10 @@
       b.type = "button"; b.className = "game";
       b.setAttribute("aria-pressed", String(C.general.game === id));
       b.innerHTML = '<span class="game-icon"></span><span><b></b><small></small></span>';
-      b.querySelector(".game-icon").textContent = meta.icon;
-      b.querySelector(".game-icon").style.background = meta.color + "33";
+      const gi = b.querySelector(".game-icon");
+      gi.style.background = meta.color + "33";
+      const emoji = () => { gi.textContent = meta.icon; };
+      if (meta.site) gi.appendChild(siteIcon(meta.site, emoji)); else emoji();
       b.querySelector("b").textContent = gameName(id);
       b.querySelector("small").textContent = t(meta.sub);
       b.addEventListener("click", () => {
@@ -450,6 +459,7 @@
     });
   }
   $("#home-btn").addEventListener("click", () => (homeOpen ? closeHome() : openHome()));
+  $("#signin").addEventListener("click", () => send("home", { op: "signin" }));
   $("#search-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const text = $("#search").value.trim();
