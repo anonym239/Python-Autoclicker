@@ -353,3 +353,6 @@ svg { fill: currentColor; }
 .signin svg { width: 16px; height: 16px; }
 .game-icon img { width: 30px; height: 30px; border-radius: 6px; }
 .pin-icon img { width: 28px; height: 28px; }
+.signin.avatar { padding: 2px; border-radius: 50%; }
+.signin.avatar svg, .signin.avatar span { display: none; }
+.signin img.av { width: 32px; height: 32px; border-radius: 50%; display: block; }

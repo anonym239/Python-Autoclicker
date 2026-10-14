@@ -30,6 +30,16 @@ TOOL_RECHECK = 0.12     # bei gedrueckter Maustaste so oft nachschauen, was in d
 TOOL_MODES = ("hold_mouse", "boost")
 NEW = "new"  # Aufnahme-Ziel fuer einen neuen Hotkey
 LEARN = "learn"  # Aufnahme-Ziel / Hotkey-Platz fuer "Werkzeug anlernen"
+# Profilbild auf YouTube/Google lesen (nur lesen, nichts wird veraendert).
+# out = "Anmelden"-Knopf sichtbar -> abgemeldet
+PROFILE_JS = """(function () {
+  function src(sel) { var e = document.querySelector(sel); return e ? (e.currentSrc || e.src || "") : ""; }
+  var pic = src("#avatar-btn img") || src("ytd-topbar-menu-button-renderer img#img") ||
+            src("a[href*='SignOutOptions'] img") || src("img.gbii") || src("img.gb_P");
+  var out = !pic && !!document.querySelector("a[href*='ServiceLogin'], a[href*='accounts.google.com/v3/signin']");
+  return JSON.stringify({ pic: pic, out: out });
+})()"""
+PROFILE_SITES = ("youtube.com", "google.com", "google.de")
 SIGN_IN_URL = "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fwww.youtube.com%2F"
 # Auf Webseiten im Programmfenster: schwebender Knopf zurueck zur App (bleibt auch bei
 # Seiten, die ihren Inhalt neu aufbauen)
@@ -592,6 +602,29 @@ class App:
             win.evaluate_js(BACK_BUTTON_JS.replace("__BACK__", base + "back").replace("__LABEL__", APP_NAME))
         except Exception:
             pass
+        host = url.split("://", 1)[-1].split("/")[0].split(":")[0].lower()
+        if any(host == d or host.endswith("." + d) for d in PROFILE_SITES):
+            threading.Thread(target=self._read_profile, args=(win, url), name="profile", daemon=True).start()
+
+    PROFILE_DELAYS = (1.5, 3.0, 5.0)  # das Profilbild laedt oft erst etwas spaeter
+
+    def _read_profile(self, win, url: str) -> None:
+        """Nach dem Anmelden: Profilbild von YouTube/Google fuer den Knopf im Home-Menue."""
+        for delay in self.PROFILE_DELAYS:
+            if self.quit_event.wait(delay):
+                return
+            try:
+                if win.get_current_url() != url:
+                    return  # Seite gewechselt
+                info = json.loads(win.evaluate_js(PROFILE_JS) or "{}")
+            except Exception:
+                continue
+            pic = info.get("pic") if isinstance(info, dict) else ""
+            if pic or (isinstance(info, dict) and info.get("out")):
+                if self.config.set_profile_pic(pic or ""):
+                    self.rev += 1
+                    self._save_soon()
+                return
 
     def back_to_app(self) -> bool:
         """Knopf "◀ AutoClicker" auf einer Webseite: zurueck ins Home-Menue.

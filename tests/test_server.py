@@ -251,6 +251,9 @@ class FakeWindow:
 
     def evaluate_js(self, code):
         self.js.append(code)
+        return self.profile if "avatar-btn" in code else None
+
+    profile = None
 
 
 class InAppBrowsingTests(unittest.TestCase):
@@ -290,3 +293,39 @@ class InAppBrowsingTests(unittest.TestCase):
             app.window_kind, app.browsing = "browser", False
             app.handle("bye", {}, client="desktop")
             self.assertTrue(app._window_closed(time.monotonic() + 10))
+
+    def test_profile_picture_after_sign_in(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = App(tmp, WEB, demo=True, keep_alive=False)
+            app.PROFILE_DELAYS = (0.01,)
+            win = FakeWindow()
+            app.window_kind, app.native_window = "native", win
+            pic = "https://yt3.ggpht.com/abc=s88-c-k"
+            win.profile = json.dumps({"pic": pic, "out": False})
+            app.handle("home", {"op": "signin"})
+            win.url = "https://www.youtube.com/"     # nach der Anmeldung -> YouTube
+            app.on_page_loaded()
+            for _ in range(100):
+                if app.config.data["general"]["profile_pic"]:
+                    break
+                time.sleep(0.01)
+            self.assertEqual(app.state()["config"]["general"]["profile_pic"], pic)
+            # fremde Adressen werden nie uebernommen
+            self.assertFalse(app.config.set_profile_pic("https://evil.example/x.png"))
+            self.assertEqual(app.config.data["general"]["profile_pic"], pic)
+            # abgemeldet ("Anmelden"-Knopf auf der Seite) -> Bild weg
+            app.config.set_profile_pic(pic)
+            win.profile = json.dumps({"pic": "", "out": True})
+            app.on_page_loaded()
+            for _ in range(100):
+                if not app.config.data["general"]["profile_pic"]:
+                    break
+                time.sleep(0.01)
+            self.assertEqual(app.config.data["general"]["profile_pic"], "")
+            # andere Seiten (z. B. Twitch) werden nicht ausgelesen
+            win.js.clear()
+            win.url = "https://www.twitch.tv/"
+            app.on_page_loaded()
+            time.sleep(0.05)
+            self.assertFalse(any("avatar-btn" in c for c in win.js))
+
