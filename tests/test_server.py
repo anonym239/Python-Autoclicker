@@ -2,6 +2,7 @@ import json
 import os
 import socket
 import tempfile
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -268,8 +269,24 @@ class InAppBrowsingTests(unittest.TestCase):
             self.assertTrue(win.loaded[-1].startswith("https://accounts.google.com/"))
             self.assertTrue(app.back_to_app())
             self.assertEqual(win.loaded[-1], app.local_url() + "&client=desktop#home")
-            app.on_page_loaded()                         # eigene Oberflaeche: kein Knopf
+            app.on_page_loaded()                         # eigene Oberflaeche: kein Knopf, wieder in der App
             self.assertEqual(len(win.js), 1)
-            app.state(client="desktop")                  # wieder in der App
             self.assertFalse(app.browsing)
             self.assertFalse(app.back_to_app())
+
+    def test_opening_a_website_never_closes_the_app(self):
+        """Fehler 6.19: Webseite geoeffnet -> Oberflaeche fragt noch einmal nach und meldet
+        sich dann ab ("bye") -> nach 3 s war das Programm zu."""
+        with tempfile.TemporaryDirectory() as tmp:
+            app = App(tmp, WEB, demo=True, keep_alive=False)
+            app.window_kind, app.native_window = "native", FakeWindow()
+            app.handle("home", {"op": "signin"})
+            app.state(client="desktop")                  # letzte Abfrage, bevor die Seite wechselt
+            app.handle("bye", {}, client="desktop")      # Oberflaeche verlaesst die Seite
+            now = time.monotonic()
+            self.assertFalse(app._window_closed(now + 10))
+            self.assertTrue(app.back_to_app())           # Zurueck-Knopf geht trotzdem
+            # Browser-Weg (kein eigenes Fenster): Abmelden ohne Nachfragen = Fenster zu
+            app.window_kind, app.browsing = "browser", False
+            app.handle("bye", {}, client="desktop")
+            self.assertTrue(app._window_closed(time.monotonic() + 10))
