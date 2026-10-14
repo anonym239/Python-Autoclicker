@@ -130,6 +130,17 @@ class App:
         self.backend.stop_input()
         self.server.stop()
 
+    def _window_closed(self, now: float) -> bool:
+        """Oberflaeche hat sich abgemeldet ("bye") und fragt nicht mehr nach -> Fenster zu.
+        Im eigenen Programmfenster zaehlt das nie: Schliesst man es, endet das Programm
+        ohnehin (webview.start kehrt zurueck) – und beim Oeffnen einer Webseite im Fenster
+        meldet sich die Oberflaeche ebenfalls ab, ohne dass etwas geschlossen wurde."""
+        if not self._bye_at or now - self._bye_at <= 3.0:
+            return False
+        self._bye_at = 0.0
+        return (self.window_kind != "native" and not self.keep_alive and not self.browsing
+                and self._last_desktop_poll < now - 3.0)
+
     def _housekeeping(self) -> None:
         last_save = time.monotonic()
         saved_clicks = self.engine.lifetime_clicks()
@@ -142,11 +153,8 @@ class App:
             if self.recording is not None and now > self._record_deadline:
                 self.matcher.cancel_recording()
                 self.recording = None
-            if self._bye_at and now - self._bye_at > 3.0:
-                self._bye_at = 0.0
-                # Seite im Fenster gewechselt (Webseite geoeffnet) ist kein Schliessen
-                if self._last_desktop_poll < now - 3.0 and not self.keep_alive and not self.browsing:
-                    self.quit_event.set()  # Fenster wurde geschlossen
+            if self._window_closed(now):
+                self.quit_event.set()
             if now - last_save > 30 and self.engine.lifetime_clicks() != saved_clicks:
                 self._store_stats()
                 self.config.save()
@@ -578,6 +586,7 @@ class App:
             url = ""
         base = f"http://127.0.0.1:{self.server.port}/"
         if url.startswith(base):
+            self.browsing = False  # wieder in der App
             return
         try:
             win.evaluate_js(BACK_BUTTON_JS.replace("__BACK__", base + "back").replace("__LABEL__", APP_NAME))
@@ -665,7 +674,6 @@ class App:
     def state(self, since: str = "-1", client: str = "") -> dict:
         if client == "desktop":
             self._last_desktop_poll = time.monotonic()
-            self.browsing = False  # wieder in der App
         out = {
             "rev": self.rev,
             "engine": self.engine.status(),
