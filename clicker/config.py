@@ -83,6 +83,7 @@ DEFAULTS = {
         "learn_hotkey": "f7",
         "game": "",                   # gewaehltes Spiel (siehe GAMES), leer = noch nicht gewaehlt
         "home_version": "",           # Version, bei der das Home-Menue zuletzt gezeigt wurde
+        "profile_pic": "",            # Google-/YouTube-Profilbild (Adresse), nach dem Anmelden
         "update_skip": "",            # diese Version nicht mehr anzeigen
         "update_snooze_until": 0.0,   # "In 5 Tagen erinnern" (Unix-Zeit)
     },
@@ -198,6 +199,18 @@ def app_target(text) -> str:
     if re.match(r"^[a-z][a-z0-9+.-]{1,30}:(//)?$", scheme) and not scheme.startswith(("http", "file", "javascript", "data")):
         return scheme
     return ""
+
+
+# Profilbilder liegen bei Google auf diesen Servern – andere Adressen werden nie angezeigt
+_PIC_HOSTS = ("googleusercontent.com", "ggpht.com", "ytimg.com")
+
+
+def profile_pic_url(text) -> str:
+    t = str(text or "").strip()
+    if len(t) > 1000 or not t.startswith("https://"):
+        return ""
+    host = t[8:].split("/")[0].lower()
+    return t if any(host == h or host.endswith("." + h) for h in _PIC_HOSTS) else ""
 
 
 def pin_name(url: str, app: str) -> str:
@@ -392,6 +405,7 @@ class Config:
         if "home_version" in g:
             out["home_version"] = str(g["home_version"] or "")[:20]
         if allow_private:
+            out["profile_pic"] = profile_pic_url(g.get("profile_pic", out["profile_pic"]))
             tok = g.get("token")
             if isinstance(tok, str) and 8 <= len(tok) <= 64 and tok.replace("-", "").replace("_", "").isalnum():
                 out["token"] = tok
@@ -626,6 +640,18 @@ class Config:
     # ─── Home-Menue ──────────────────────────────────────
     def game(self) -> str:
         return self.data["general"]["game"]
+
+    def set_profile_pic(self, url: str) -> bool:
+        """-> True, wenn sich das Bild geaendert hat ("" = abgemeldet). Fremde Adressen: nichts."""
+        clean = profile_pic_url(url)
+        if url and not clean:
+            return False
+        url = clean
+        with self._lock:
+            if self.data["general"]["profile_pic"] == url:
+                return False
+            self.data["general"]["profile_pic"] = url
+            return True
 
     def pins(self) -> list:
         with self._lock:

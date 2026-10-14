@@ -437,6 +437,18 @@
       add.addEventListener("click", openPinDialog);
       pins.appendChild(add);
     }
+    // Angemeldet: Profilbild statt "Anmelden"
+    const si = $("#signin"), pic = C.general.profile_pic || "";
+    let av = si.querySelector("img.av");
+    if (pic && !av) {
+      av = document.createElement("img");
+      av.className = "av"; av.alt = ""; av.referrerPolicy = "no-referrer";
+      av.onerror = () => { av.remove(); si.classList.remove("avatar"); };
+      si.prepend(av);
+    }
+    if (pic && av.getAttribute("src") !== pic) av.src = pic;
+    if (!pic && av) av.remove();
+    si.classList.toggle("avatar", !!pic);
     const games = $("#games");
     games.textContent = "";
     (C.games || Object.keys(GAMES)).forEach((id) => {
