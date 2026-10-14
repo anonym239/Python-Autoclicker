@@ -41,6 +41,9 @@ lässt sich der Hinweis wegklicken.
   Ist das Programm installiert (Spotify, Discord), startet das Programm, sonst die Webseite. Anmeldungen bleiben
   lokal auf dem PC (WebView2-Profil unter `%LOCALAPPDATA%\AutoClicker`) – kein Konto, kein API-Key, keine Cloud.
 
+**Menüs (Minecraft):** In Inventar, Truhen, Chat oder Pause-Menü klickt der AutoClicker nicht (dort ist der
+Mauszeiger sichtbar, im Spiel nicht). Abschaltbar unter Einstellungen → „In Menüs nicht klicken“.
+
 **Werkzeuge (Minecraft PvP / CPS-Boost):** Mit einer Spitzhacke kann man kein Bett abbauen, wenn der
 AutoClicker schnell klickt. Deshalb: **„Werkzeug anlernen“** drücken, im Spiel das Werkzeug in die Hand nehmen
 und einen Block abbauen (geht auch im Kreativmodus). Der AutoClicker erkennt das Item an der Hotbar und zeigt

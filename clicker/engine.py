@@ -56,6 +56,10 @@ class ClickSettings:
 class SmartSettings:
     window_lock: bool = False
     window_match: list = field(default_factory=lambda: ["Minecraft"])
+    # In Menues nicht klicken: in diesen Spielfenstern heisst "Mauszeiger sichtbar" =
+    # Inventar, Truhe, Chat oder Pause-Menue offen (im Spiel selbst ist er versteckt)
+    menu_pause: bool = False
+    menu_windows: list = field(default_factory=list)
 
 
 class ClickEngine:
@@ -89,6 +93,7 @@ class ClickEngine:
         self.cps_live = 0.0
         self._samples: deque = deque(maxlen=5)
         self._fg_cache = ("", -1.0)
+        self._cursor_cache = (False, -1.0)
 
         self._thread = threading.Thread(target=self._loop, name="click-engine", daemon=True)
         self._stats = threading.Thread(target=self._stats_loop, name="stats", daemon=True)
@@ -274,6 +279,16 @@ class ClickEngine:
             self._fg_cache = (title, now)
         return title
 
+    def _cursor_visible(self, now: float) -> bool:
+        shown, ts = self._cursor_cache
+        if now - ts > 0.05 or ts < 0:
+            try:
+                shown = bool(self.backend.cursor_visible())
+            except Exception:
+                shown = False
+            self._cursor_cache = (shown, now)
+        return shown
+
     def _evaluate(self, now: float) -> tuple[str, str]:
         """-> (state, reason). Nur 'clicking' bedeutet: jetzt klicken."""
         c, s = self.cfg, self.smart
@@ -298,6 +313,10 @@ class ClickEngine:
                 return "paused", "window"
         elif WINDOW_TITLE.lower() in low:
             return "paused", "self"  # nie ins eigene Fenster klicken
+        if (s.menu_pause and any(m.strip().lower() in low for m in s.menu_windows if m.strip())
+                and self._cursor_visible(now)):
+            self._clear_boost()  # Extra-Klicks nicht nach dem Schliessen nachholen
+            return "paused", "menu"
         return "clicking", ""
 
     def _next_interval(self, cfg: ClickSettings) -> float:

@@ -199,6 +199,9 @@ window.AC_I18N = {
     tour1_p_g: "Links wählst du, wie geklickt wird: Standard, PvP (Maustaste halten), CPS-Boost (jeder Klick zählt doppelt) oder AFK-Farm.",
     sign_in: "Anmelden",
     sign_in_sub: "Mit Google anmelden – gilt dann auch für YouTube & Co. Bleibt nur auf deinem PC gespeichert.",
+    menu_pause: "In Menüs nicht klicken",
+    menu_pause_sub: "Inventar, Truhen, Chat, Pause-Menü – auch beim Halten",
+    hint_menu: "Pause – Menü offen (Inventar, Chat …).",
   },
 
   en: {
@@ -392,6 +395,9 @@ window.AC_I18N = {
     tour1_p_g: "On the left you choose how to click: Standard, PvP (hold the mouse button), CPS boost (every click counts double) or AFK farm.",
     sign_in: "Sign in",
     sign_in_sub: "Sign in with Google – also works for YouTube & co. Stays saved only on your PC.",
+    menu_pause: "Don't click in menus",
+    menu_pause_sub: "Inventory, chests, chat, pause menu – even while holding",
+    hint_menu: "Paused – a menu is open (inventory, chat …).",
   },
 
   es: {
@@ -585,6 +591,9 @@ window.AC_I18N = {
     tour1_p_g: "A la izquierda eliges cómo hacer clic: Estándar, PvP (mantener el botón), CPS Boost (cada clic cuenta doble) o Granja AFK.",
     sign_in: "Iniciar sesión",
     sign_in_sub: "Inicia sesión con Google – también sirve para YouTube y demás. Solo se guarda en tu PC.",
+    menu_pause: "No hacer clic en menús",
+    menu_pause_sub: "Inventario, cofres, chat, menú de pausa – también al mantener",
+    hint_menu: "Pausa – hay un menú abierto (inventario, chat …).",
   },
 
   fr: {
@@ -778,6 +787,9 @@ window.AC_I18N = {
     tour1_p_g: "À gauche, tu choisis comment cliquer : Standard, PvP (maintenir le bouton), Boost CPS (chaque clic compte double) ou Ferme AFK.",
     sign_in: "Connexion",
     sign_in_sub: "Connecte-toi avec Google – valable aussi pour YouTube & co. Enregistré uniquement sur ton PC.",
+    menu_pause: "Ne pas cliquer dans les menus",
+    menu_pause_sub: "Inventaire, coffres, chat, menu pause – même en maintenant",
+    hint_menu: "Pause – un menu est ouvert (inventaire, chat …).",
   },
 
   it: {
@@ -971,6 +983,9 @@ window.AC_I18N = {
     tour1_p_g: "A sinistra scegli come cliccare: Standard, PvP (tieni premuto il mouse), Boost CPS (ogni clic vale doppio) o Farm AFK.",
     sign_in: "Accedi",
     sign_in_sub: "Accedi con Google – vale anche per YouTube & co. Resta salvato solo sul tuo PC.",
+    menu_pause: "Non cliccare nei menu",
+    menu_pause_sub: "Inventario, bauli, chat, menu di pausa – anche tenendo premuto",
+    hint_menu: "Pausa – menu aperto (inventario, chat …).",
   },
 
   pt: {
@@ -1164,6 +1179,9 @@ window.AC_I18N = {
     tour1_p_g: "À esquerda você escolhe como clicar: Padrão, PvP (segurar o botão do mouse), Boost de CPS (cada clique vale dois) ou Farm AFK.",
     sign_in: "Entrar",
     sign_in_sub: "Entre com o Google – vale também para o YouTube e afins. Fica salvo só no seu PC.",
+    menu_pause: "Não clicar em menus",
+    menu_pause_sub: "Inventário, baús, chat, menu de pausa – mesmo segurando",
+    hint_menu: "Pausa – menu aberto (inventário, chat …).",
   },
 
   nl: {
@@ -1357,6 +1375,9 @@ window.AC_I18N = {
     tour1_p_g: "Links kies je hoe er geklikt wordt: Standaard, PvP (muisknop ingedrukt houden), CPS Boost (elke klik telt dubbel) of AFK Farm.",
     sign_in: "Inloggen",
     sign_in_sub: "Log in met Google – werkt dan ook voor YouTube & co. Blijft alleen op je pc bewaard.",
+    menu_pause: "Niet klikken in menu's",
+    menu_pause_sub: "Inventaris, kisten, chat, pauzemenu – ook bij ingedrukt houden",
+    hint_menu: "Pauze – menu open (inventaris, chat …).",
   },
 
   sv: {
@@ -1550,6 +1571,9 @@ window.AC_I18N = {
     tour1_p_g: "Till vänster väljer du hur det ska klickas: Standard, PvP (håll in musknappen), CPS Boost (varje klick räknas dubbelt) eller AFK Farm.",
     sign_in: "Logga in",
     sign_in_sub: "Logga in med Google – gäller då även YouTube m.fl. Sparas bara på din dator.",
+    menu_pause: "Klicka inte i menyer",
+    menu_pause_sub: "Förråd, kistor, chatt, pausmeny – även när du håller",
+    hint_menu: "Paus – en meny är öppen (förråd, chatt …).",
   },
 
   nb: {
@@ -1743,6 +1767,9 @@ window.AC_I18N = {
     tour1_p_g: "Til venstre velger du hvordan det skal klikkes: Standard, PvP (hold inne museknappen), CPS Boost (hvert klikk teller dobbelt) eller AFK Farm.",
     sign_in: "Logg inn",
     sign_in_sub: "Logg inn med Google – gjelder da også YouTube m.m. Lagres bare på PC-en din.",
+    menu_pause: "Ikke klikk i menyer",
+    menu_pause_sub: "Inventar, kister, chat, pausemeny – også når du holder",
+    hint_menu: "Pause – en meny er åpen (inventar, chat …).",
   },
 
   da: {
@@ -1936,6 +1963,9 @@ window.AC_I18N = {
     tour1_p_g: "Til venstre vælger du, hvordan der skal klikkes: Standard, PvP (hold museknappen nede), CPS Boost (hvert klik tæller dobbelt) eller AFK Farm.",
     sign_in: "Log ind",
     sign_in_sub: "Log ind med Google – gælder så også YouTube m.fl. Gemmes kun på din pc.",
+    menu_pause: "Klik ikke i menuer",
+    menu_pause_sub: "Inventar, kister, chat, pausemenu – også når du holder",
+    hint_menu: "Pause – en menu er åben (inventar, chat …).",
   },
 
   fi: {
@@ -2129,6 +2159,9 @@ window.AC_I18N = {
     tour1_p_g: "Vasemmalta valitset, miten klikataan: Perus, PvP (pidä hiiren nappi pohjassa), CPS Boost (joka klikkaus lasketaan tuplana) tai AFK Farm.",
     sign_in: "Kirjaudu",
     sign_in_sub: "Kirjaudu Googlella – toimii silloin myös YouTubessa ym. Tallentuu vain koneellesi.",
+    menu_pause: "Älä klikkaa valikoissa",
+    menu_pause_sub: "Reppu, arkut, chat, taukovalikko – myös pohjassa pidettäessä",
+    hint_menu: "Tauko – valikko auki (reppu, chat …).",
   },
 
   pl: {
@@ -2322,6 +2355,9 @@ window.AC_I18N = {
     tour1_p_g: "Po lewej wybierasz sposób klikania: Standard, PvP (przytrzymaj przycisk), CPS Boost (każde kliknięcie x2) albo Farma AFK.",
     sign_in: "Zaloguj",
     sign_in_sub: "Zaloguj się przez Google – działa też w YouTube i innych. Zapisane tylko na twoim PC.",
+    menu_pause: "Nie klikaj w menu",
+    menu_pause_sub: "Ekwipunek, skrzynie, czat, menu pauzy – także przy przytrzymaniu",
+    hint_menu: "Pauza – otwarte menu (ekwipunek, czat …).",
   },
 
   cs: {
@@ -2515,6 +2551,9 @@ window.AC_I18N = {
     tour1_p_g: "Vlevo si vybereš, jak se má klikat: Standard, PvP (držíš tlačítko myši), CPS boost (každý klik se počítá dvakrát) nebo AFK farma.",
     sign_in: "Přihlásit",
     sign_in_sub: "Přihlas se přes Google – platí pak i pro YouTube a spol. Uloží se jen v tvém PC.",
+    menu_pause: "Neklikat v nabídkách",
+    menu_pause_sub: "Inventář, truhly, chat, pauza – i při držení",
+    hint_menu: "Pauza – je otevřená nabídka (inventář, chat …).",
   },
 
   sk: {
@@ -2708,6 +2747,9 @@ window.AC_I18N = {
     tour1_p_g: "Vľavo si vyberieš, ako sa má klikať: Štandard, PvP (držíš tlačidlo myši), CPS boost (každý klik sa počíta dvakrát) alebo AFK farma.",
     sign_in: "Prihlásiť",
     sign_in_sub: "Prihlás sa cez Google – platí potom aj pre YouTube a spol. Uloží sa len v tvojom PC.",
+    menu_pause: "Neklikať v ponukách",
+    menu_pause_sub: "Inventár, truhlice, chat, pauza – aj pri držaní",
+    hint_menu: "Pauza – je otvorená ponuka (inventár, chat …).",
   },
 
   hu: {
@@ -2901,6 +2943,9 @@ window.AC_I18N = {
     tour1_p_g: "Bal oldalt választod ki, hogyan kattintson: Normál, PvP (egérgomb nyomva tartva), CPS boost (minden kattintás duplán számít) vagy AFK farm.",
     sign_in: "Belépés",
     sign_in_sub: "Lépj be Google-lel – a YouTube-on és máshol is érvényes. Csak a gépeden marad mentve.",
+    menu_pause: "Ne kattintson menükben",
+    menu_pause_sub: "Eszköztár, ládák, chat, szünetmenü – nyomva tartáskor is",
+    hint_menu: "Szünet – nyitva van egy menü (eszköztár, chat …).",
   },
 
   ro: {
@@ -3094,6 +3139,9 @@ window.AC_I18N = {
     tour1_p_g: "În stânga alegi cum se dă click: Standard, PvP (ții butonul mouse-ului), CPS Boost (fiecare click contează dublu) sau AFK Farm.",
     sign_in: "Conectare",
     sign_in_sub: "Conectează-te cu Google – merge apoi și pe YouTube & co. Rămâne salvat doar pe PC-ul tău.",
+    menu_pause: "Nu da click în meniuri",
+    menu_pause_sub: "Inventar, cufere, chat, meniul de pauză – și când ții apăsat",
+    hint_menu: "Pauză – un meniu e deschis (inventar, chat …).",
   },
 
   el: {
@@ -3287,6 +3335,9 @@ window.AC_I18N = {
     tour1_p_g: "Αριστερά διαλέγεις πώς θα κλικάρει: Κανονική, PvP (κράτα πατημένο το κουμπί), CPS Boost (κάθε κλικ μετράει διπλό) ή AFK Farm.",
     sign_in: "Σύνδεση",
     sign_in_sub: "Σύνδεση με Google – ισχύει και για YouTube κ.λπ. Αποθηκεύεται μόνο στον υπολογιστή σου.",
+    menu_pause: "Χωρίς κλικ στα μενού",
+    menu_pause_sub: "Αποθέματα, σεντούκια, chat, μενού παύσης – και όταν κρατάς",
+    hint_menu: "Παύση – είναι ανοιχτό μενού (αποθέματα, chat …).",
   },
 
   bg: {
@@ -3480,6 +3531,9 @@ window.AC_I18N = {
     tour1_p_g: "Отляво избираш как да се кликва: Стандартен, PvP (задръж бутона на мишката), CPS Буст (всеки клик се брои двойно) или AFK ферма.",
     sign_in: "Вход",
     sign_in_sub: "Влез с Google – важи и за YouTube и др. Пази се само на твоя компютър.",
+    menu_pause: "Без кликане в менюта",
+    menu_pause_sub: "Инвентар, сандъци, чат, меню за пауза – и при задържане",
+    hint_menu: "Пауза – отворено е меню (инвентар, чат …).",
   },
 
   ru: {
@@ -3673,6 +3727,9 @@ window.AC_I18N = {
     tour1_p_g: "Слева выбираешь, как кликать: Стандарт, PvP (зажать кнопку мыши), CPS Буст (каждый клик считается дважды) или AFK-ферма.",
     sign_in: "Войти",
     sign_in_sub: "Войди через Google – сработает и для YouTube и т. д. Хранится только на твоём ПК.",
+    menu_pause: "Не кликать в меню",
+    menu_pause_sub: "Инвентарь, сундуки, чат, меню паузы – даже при удержании",
+    hint_menu: "Пауза – открыто меню (инвентарь, чат …).",
   },
 
   uk: {
@@ -3866,6 +3923,9 @@ window.AC_I18N = {
     tour1_p_g: "Зліва обираєш, як клікати: Стандарт, PvP (затиснути кнопку миші), CPS Буст (кожен клік рахується двічі) або AFK-ферма.",
     sign_in: "Увійти",
     sign_in_sub: "Увійди через Google – діятиме й для YouTube тощо. Зберігається лише на твоєму ПК.",
+    menu_pause: "Не клікати в меню",
+    menu_pause_sub: "Інвентар, скрині, чат, меню паузи – навіть при утриманні",
+    hint_menu: "Пауза – відкрите меню (інвентар, чат …).",
   },
 
   tr: {
@@ -4059,6 +4119,9 @@ window.AC_I18N = {
     tour1_p_g: "Solda nasıl tıklanacağını seçersin: Standart, PvP (fare tuşunu basılı tut), CPS Boost (her tık iki kez sayılır) veya AFK Çiftliği.",
     sign_in: "Giriş yap",
     sign_in_sub: "Google ile giriş yap – YouTube vb. için de geçerli. Sadece bilgisayarında kayıtlı kalır.",
+    menu_pause: "Menülerde tıklama",
+    menu_pause_sub: "Envanter, sandıklar, sohbet, duraklatma menüsü – basılı tutarken de",
+    hint_menu: "Duraklatıldı – bir menü açık (envanter, sohbet …).",
   },
 
   ja: {
@@ -4252,6 +4315,9 @@ window.AC_I18N = {
     tour1_p_g: "左側でクリック方法を選びます: スタンダード、PvP（マウスボタン長押し）、CPSブースト（1クリックが2倍）、AFKファーム。",
     sign_in: "ログイン",
     sign_in_sub: "Googleでログイン – YouTubeなどでも使えます。このPCにだけ保存されます。",
+    menu_pause: "メニューではクリックしない",
+    menu_pause_sub: "インベントリ・チェスト・チャット・ポーズ画面（長押し中も）",
+    hint_menu: "一時停止 – メニューが開いています（インベントリ、チャットなど）。",
   },
 
   zh: {
@@ -4445,6 +4511,9 @@ window.AC_I18N = {
     tour1_p_g: "在左侧选择点击方式：标准、PvP（按住鼠标键）、CPS 加速（每次点击算两次）或 AFK 挂机。",
     sign_in: "登录",
     sign_in_sub: "使用 Google 登录 – YouTube 等也会一起登录。只保存在你的电脑上。",
+    menu_pause: "在菜单中不点击",
+    menu_pause_sub: "背包、箱子、聊天、暂停菜单 – 按住时也一样",
+    hint_menu: "已暂停 – 菜单已打开（背包、聊天等）。",
   },
 
   ko: {
@@ -4638,5 +4707,8 @@ window.AC_I18N = {
     tour1_p_g: "왼쪽에서 클릭 방식을 선택하세요: 기본, PvP(마우스 버튼 누르기), CPS 부스트(클릭마다 2배) 또는 AFK 농장.",
     sign_in: "로그인",
     sign_in_sub: "Google로 로그인 – YouTube 등에서도 그대로 로그인됩니다. 이 PC에만 저장됩니다.",
+    menu_pause: "메뉴에서는 클릭 안 함",
+    menu_pause_sub: "인벤토리, 상자, 채팅, 일시정지 메뉴 – 누르고 있을 때도",
+    hint_menu: "일시정지 – 메뉴가 열려 있습니다 (인벤토리, 채팅 등).",
   },
 };
