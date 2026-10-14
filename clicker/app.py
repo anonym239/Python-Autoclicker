@@ -8,20 +8,19 @@ import os
 import sys
 import threading
 import time
-import urllib.parse
 import urllib.request
 import webbrowser
 
 from . import APP_NAME, VERSION, WINDOW_TITLE
 from .backend import create_backend
-from .config import GAMES, PRESET_ORDER, PRESETS, Config, user_data_dir, web_url
+from .config import PRESET_ORDER, PRESETS, Config, user_data_dir
 from .engine import ClickEngine
 from .hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, Template, best_match, item_sample, locate,
                      merge_items, same_tool, shot_png, slot_photo, template_from_icon)
 from .keys import HotkeyMatcher
 from .server import WebServer
 from .updater import SNOOZE_SECONDS, Updater
-from .window import close_all_windows, open_app_window, open_web_window, run_native_window
+from .window import open_app_window, run_native_window
 
 RECORD_TIMEOUT = 15.0
 EXPORT_NAME = "AutoClicker-{}.json"
@@ -30,32 +29,6 @@ TOOL_RECHECK = 0.12     # bei gedrueckter Maustaste so oft nachschauen, was in d
 TOOL_MODES = ("hold_mouse", "boost")
 NEW = "new"  # Aufnahme-Ziel fuer einen neuen Hotkey
 LEARN = "learn"  # Aufnahme-Ziel / Hotkey-Platz fuer "Werkzeug anlernen"
-# Profilbild auf YouTube/Google lesen (nur lesen, nichts wird veraendert).
-# out = "Anmelden"-Knopf sichtbar -> abgemeldet
-PROFILE_JS = """(function () {
-  function src(sel) { var e = document.querySelector(sel); return e ? (e.currentSrc || e.src || "") : ""; }
-  var pic = src("#avatar-btn img") || src("ytd-topbar-menu-button-renderer img#img") ||
-            src("a[href*='SignOutOptions'] img") || src("img.gbii") || src("img.gb_P");
-  var out = !pic && !!document.querySelector("a[href*='ServiceLogin'], a[href*='accounts.google.com/v3/signin']");
-  return JSON.stringify({ pic: pic, out: out });
-})()"""
-PROFILE_SITES = ("youtube.com", "google.com", "google.de")
-SIGN_IN_URL = "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fwww.youtube.com%2F"
-# Auf Webseiten im Programmfenster: schwebender Knopf zurueck zur App (bleibt auch bei
-# Seiten, die ihren Inhalt neu aufbauen)
-BACK_BUTTON_JS = """(function () {
-  function add() {
-    if (document.getElementById("__ac_back")) return;
-    var b = document.createElement("a");
-    b.id = "__ac_back"; b.href = "__BACK__"; b.textContent = "\u25C0 __LABEL__";
-    b.style.cssText = "position:fixed;left:14px;bottom:14px;z-index:2147483647;padding:9px 15px;" +
-      "border-radius:20px;background:#0067c0;color:#fff;font:600 13px 'Segoe UI',sans-serif;" +
-      "text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.35);";
-    (document.body || document.documentElement).appendChild(b);
-  }
-  add();
-  if (!window.__acBackTimer) window.__acBackTimer = setInterval(add, 1500);
-})();"""
 
 
 class App:
@@ -74,7 +47,6 @@ class App:
         self.can_self_update = bool(getattr(sys, "frozen", False)) and self.backend.name == "windows"
         self.native_window = None             # pywebview-Fenster, wenn vorhanden
         self.window_kind = ""                 # "native" | "browser" | ""
-        self.last_opened = ""                 # zuletzt im Home-Menue geoeffnet (fuer Tests)
         self.icon_path = ""                   # assets/icon.ico (scharfes Taskleisten-Icon)
         self.keep_alive = keep_alive          # Fenster schliessen beendet NICHT (Tests/--no-window)
         self.rev = 1                          # Konfig-Revision fuer die Oberflaeche
@@ -98,7 +70,6 @@ class App:
         self._notice_id = 0
         self._last_desktop_poll = 0.0
         self._bye_at = 0.0
-        self.browsing = False                 # Hauptfenster zeigt gerade eine Webseite (Home-Menue)
         self._save_timer: threading.Timer | None = None
         self._lock = threading.RLock()
         self.quit_event = threading.Event()
@@ -148,7 +119,7 @@ class App:
         if not self._bye_at or now - self._bye_at <= 3.0:
             return False
         self._bye_at = 0.0
-        return (self.window_kind != "native" and not self.keep_alive and not self.browsing
+        return (self.window_kind != "native" and not self.keep_alive
                 and self._last_desktop_poll < now - 3.0)
 
     def _housekeeping(self) -> None:
@@ -253,7 +224,7 @@ class App:
             if sound:
                 self.backend.beep("stop")
             return
-        if self.config.mode() not in TOOL_MODES or not self._minecraft():
+        if self.config.mode() not in TOOL_MODES:
             self._notify("e_learn_mode")  # nur bei Minecraft PvP und CPS-Boost
             self.backend.beep("learn_fail")
             return
@@ -293,18 +264,13 @@ class App:
             return self._game_in_front()
 
     def _tools_matter(self) -> bool:
-        return self.config.mode() in TOOL_MODES and self._minecraft() and any(self._tool_templates)
-
-    def _minecraft(self) -> bool:
-        """Werkzeug-Erkennung gibt es nur fuer Minecraft (Hotbar)."""
-        return self.config.game() in ("minecraft", "")
+        return self.config.mode() in TOOL_MODES and any(self._tool_templates)
 
     def _on_raw_input(self, kind: str, name: str, down: bool) -> None:
         """Tasten 1–9 / Mausrad im Spiel: gewaehlten Hotbar-Platz mitschreiben."""
         # auch ohne angelernte Werkzeuge mitschreiben: beim Anlern-Hotkey ist das Werkzeug
         # schon gewaehlt, bevor das Anlernen startet
-        if not down or not (self.learning or self.config.mode() in TOOL_MODES and self._minecraft()) \
-                or not self._in_game():
+        if not down or not (self.learning or self.config.mode() in TOOL_MODES) or not self._in_game():
             return
         before = self.slots.slot
         if kind == "k":
@@ -524,130 +490,6 @@ class App:
         self._apply()
         return self.state()
 
-    # ─── Home-Menue ─────────────────────────────────────
-    def home_action(self, body: dict):
-        op = body.get("op")
-        if op == "open":  # angepinnte Seite/Programm (index) oder Suche/Adresse (text)
-            index = body.get("index")
-            if isinstance(index, int):
-                pins = self.config.pins()
-                if not 0 <= index < len(pins):
-                    return {"error": "e_not_found"}
-                pin = pins[index]
-                if not self._open_target(pin.get("url", ""), pin.get("app", ""), pin["name"]):
-                    return {"error": "e_open"}
-            else:
-                text = str(body.get("text", "")).strip()
-                if not text:
-                    return {"error": "e_open"}
-                url = web_url(text) if "." in text and " " not in text else ""
-                url = url or "https://www.google.com/search?q=" + urllib.parse.quote_plus(text[:300])
-                if not self._open_target(url, "", url.split("://", 1)[1].split("/")[0]):
-                    return {"error": "e_open"}
-            return {"ok": True}
-        if op == "signin":  # Google-Konto: gilt danach fuer YouTube & Co. (lokal gespeichert)
-            return {"ok": True} if self._open_target(SIGN_IN_URL, "", "Google") else {"error": "e_open"}
-        if op == "pin_add":
-            err = self.config.add_pin(str(body.get("name", "")), str(body.get("target", "")))
-            if err:
-                return {"error": err}
-        elif op == "pin_remove":
-            index = body.get("index")
-            if not isinstance(index, int) or not self.config.remove_pin(index):
-                return {"error": "e_not_found"}
-        else:
-            return {"error": "Unbekannte Aktion"}
-        self._save_soon()
-        self.rev += 1
-        return self.state()
-
-    def _open_target(self, url: str, app: str, title: str) -> bool:
-        """Programm starten (falls installiert) oder Webseite im eigenen Fenster oeffnen."""
-        self.last_opened = app or url
-        if self.keep_alive:  # Tests / ohne Fenster: nichts wirklich oeffnen
-            return True
-        if app and sys.platform == "win32" and self._app_available(app):
-            try:
-                os.startfile(app)  # noqa: S606 – nur geprueftes Programm/Protokoll (config.app_target)
-                return True
-            except OSError:
-                pass
-        if not url:
-            return False
-        if self.window_kind == "native" and self.native_window is not None:
-            try:  # direkt im AutoClicker-Fenster; "◀ AutoClicker" unten links fuehrt zurueck
-                self.browsing = True
-                self.native_window.load_url(url)
-                return True
-            except Exception:
-                self.browsing = False
-            if open_web_window(url, f"{title} – {APP_NAME}"):
-                return True
-        return webbrowser.open(url)
-
-    def on_page_loaded(self, *_args) -> None:
-        """Webseite im Fenster geladen: Knopf zurueck zur App einblenden."""
-        win = self.native_window
-        if not self.browsing or win is None:
-            return
-        try:
-            url = win.get_current_url() or ""
-        except Exception:
-            url = ""
-        base = f"http://127.0.0.1:{self.server.port}/"
-        if url.startswith(base):
-            self.browsing = False  # wieder in der App
-            return
-        try:
-            win.evaluate_js(BACK_BUTTON_JS.replace("__BACK__", base + "back").replace("__LABEL__", APP_NAME))
-        except Exception:
-            pass
-        host = url.split("://", 1)[-1].split("/")[0].split(":")[0].lower()
-        if any(host == d or host.endswith("." + d) for d in PROFILE_SITES):
-            threading.Thread(target=self._read_profile, args=(win, url), name="profile", daemon=True).start()
-
-    PROFILE_DELAYS = (1.5, 3.0, 5.0)  # das Profilbild laedt oft erst etwas spaeter
-
-    def _read_profile(self, win, url: str) -> None:
-        """Nach dem Anmelden: Profilbild von YouTube/Google fuer den Knopf im Home-Menue."""
-        for delay in self.PROFILE_DELAYS:
-            if self.quit_event.wait(delay):
-                return
-            try:
-                if win.get_current_url() != url:
-                    return  # Seite gewechselt
-                info = json.loads(win.evaluate_js(PROFILE_JS) or "{}")
-            except Exception:
-                continue
-            pic = info.get("pic") if isinstance(info, dict) else ""
-            if pic or (isinstance(info, dict) and info.get("out")):
-                if self.config.set_profile_pic(pic or ""):
-                    self.rev += 1
-                    self._save_soon()
-                return
-
-    def back_to_app(self) -> bool:
-        """Knopf "◀ AutoClicker" auf einer Webseite: zurueck ins Home-Menue.
-        Der Link selbst enthaelt keinen Code – den haengt erst das Programm an."""
-        if not self.browsing or self.native_window is None:
-            return False
-        try:
-            self.native_window.load_url(self.local_url() + "&client=desktop#home")
-            return True
-        except Exception:
-            return False
-
-    @staticmethod
-    def _app_available(app: str) -> bool:
-        if app.endswith(":") or app.endswith("://"):  # Protokoll: ist ein Programm dafuer registriert?
-            try:
-                import winreg
-                with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, app.split(":")[0]):
-                    return True
-            except OSError:
-                return False
-        return os.path.isfile(app)
-
     def _export_tools(self):
         """Werkzeuge (Umriss, Bild, Foto) als JSON-Datei in den Download-Ordner schreiben."""
         tools = self.config.tools()
@@ -732,8 +574,6 @@ class App:
                 "tools": self.config.tools(),
                 "kits": self.config.kits(),
                 "kit": self.config.kit_index(),
-                "pins": self.config.pins(),
-                "games": list(GAMES),
                 "general": general,
             }
             out["info"] = {
@@ -749,12 +589,7 @@ class App:
             return self.action(body.get("do"))
         if name == "settings":
             general = body.get("general") or {}
-            game_before = self.config.game()
             changed = self.config.update(body)
-            if self.config.game() != game_before:
-                self.engine.stop("mode")  # anderes Spiel -> Klicker aus (wie beim Moduswechsel)
-                if self.learning:
-                    self.tools_action({"op": "cancel"})
             if general.get("learn_hotkey_on") and any(
                     h["key"] == self.config.learn_hotkey() for h in self.config.hotkeys()):
                 self._notify("e_key_taken")  # Taste ist schon ein anderer Hotkey
@@ -783,8 +618,6 @@ class App:
             return self.hotkeys(body)
         if name == "tools":
             return self.tools_action(body)
-        if name == "home":
-            return self.home_action(body)
         if name == "update":
             return self.update_action(str(body.get("op", "")))
         if name == "bye":
@@ -951,10 +784,6 @@ def main(argv=None) -> int:
             def ready(win):
                 app.native_window = win
                 app.window_kind = "native"
-                try:
-                    win.events.loaded += app.on_page_loaded
-                except Exception:
-                    pass
                 # Programm wird beendet (z. B. fuer ein Update) -> Fenster schliessen
                 threading.Thread(target=_close_on_quit, args=(app, win), daemon=True).start()
             native_ok = run_native_window(url, WINDOW_TITLE, app.config.data["general"]["always_on_top"],
@@ -984,7 +813,6 @@ def _close_on_quit(app: App, win) -> None:
         win.destroy()
     except Exception:
         pass
-    close_all_windows()  # auch geoeffnete Webseiten-Fenster
 
 
 def _selftest(app: App, path: str) -> None:

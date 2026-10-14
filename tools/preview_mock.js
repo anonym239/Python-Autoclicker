@@ -6,7 +6,7 @@ window.AC_MOCK = (() => {
   const PRESETS = __PRESETS__;
 
   const cfg = JSON.parse(JSON.stringify(CONFIG));
-  let update = { version: "6.23", status: "available", progress: 0, error: "", can_install: true };
+  let update = { version: "6.24", status: "available", progress: 0, error: "", can_install: true };
   let rev = 1, recording = null, recordUntil = 0, notice = null, noticeId = 0;
   let learning = false, slot = 1, learnPress = null;
   cfg.kits = cfg.kits || [{ name: "Kit 1", tools: [] }];
@@ -113,7 +113,6 @@ window.AC_MOCK = (() => {
         mode: mode(), current: { ...cur() }, hotkeys: cfg.hotkeys.map((h) => ({ ...h })),
         tools: T().map((x) => ({ ...x })), general,
         kits: cfg.kits.map((k) => ({ name: k.name, count: k.tools.length })), kit: cfg.kit,
-        pins: (cfg.pins || []).map((x) => ({ ...x })), games: ["minecraft", "roblox", "terraria", "cookie", "other"],
       };
       out.info = { name: "AutoClicker", version: "__VERSION__", backend: "demo", hooks_ok: false };
     }
@@ -206,26 +205,6 @@ window.AC_MOCK = (() => {
         items.forEach((x) => { if (x && x.icon && T().length < 30) { T().push(x); n++; } });
         noticeId++; notice = { id: noticeId, key: "n_tools_imported", vars: { n }, at: Date.now() };
       }
-    } else if (name === "home") {
-      // Vorschau: Seiten in einem neuen Tab, Programme gehen hier nicht
-      if (b.op === "signin") { window.open("https://accounts.google.com/", "_blank", "noopener"); return { ok: true }; }
-      if (b.op === "open") {
-        const p = Number.isInteger(b.index) ? cfg.pins[b.index] : null;
-        const text = String(b.text || "").trim();
-        const url = p ? p.url : /^\S+\.\S+$/.test(text) ? (/^https?:/i.test(text) ? text : "https://" + text)
-          : "https://www.google.com/search?q=" + encodeURIComponent(text);
-        if (!url) fail("e_open");
-        window.open(url, "_blank", "noopener");
-        return { ok: true };
-      } else if (b.op === "pin_add") {
-        const target = String(b.target || "").trim();
-        const isApp = /^[a-z]:\\.+\.(exe|lnk|url)$/i.test(target) || /^[a-z][a-z0-9+.-]+:(\/\/)?$/i.test(target);
-        if (!isApp && !/^\S+\.[a-z]{2,}(\/\S*)?$/i.test(target.replace(/^https?:\/\//i, ""))) fail("e_pin_target");
-        if (cfg.pins.length >= 12) fail("e_max_pins");
-        const url = isApp ? "" : (/^https?:/i.test(target) ? target : "https://" + target);
-        const name = String(b.name || "").trim() || (url ? new URL(url).hostname.replace(/^www\./, "").split(".")[0] : target.split(/[\\:]/).filter(Boolean).pop());
-        cfg.pins.push(isApp ? { name: name.charAt(0).toUpperCase() + name.slice(1), app: target } : { name: name.charAt(0).toUpperCase() + name.slice(1), url });
-      } else if (b.op === "pin_remove") cfg.pins.splice(b.index, 1);
     } else if (name === "update") {
       if (b.op === "later") { update = null; notify("Erinnerung in 5 Tagen"); }
       else if (b.op === "skip") update = null;
