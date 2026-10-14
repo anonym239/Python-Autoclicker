@@ -188,6 +188,7 @@
     setChecked($("#o-top"), g.always_on_top);
     setChecked($("#o-sound"), g.sound);
     setChecked($("#o-learn"), g.learn_hotkey_on);
+    setChecked($("#o-menu"), g.menu_pause);
     $("#o-learn-row").hidden = !g.learn_hotkey_on || neutral;
     $$(".mc-only").forEach((el) => { el.hidden = neutral; });  // Werkzeuge gibt es nur in Minecraft
     pressed("#theme-seg", g.theme);
@@ -513,7 +514,7 @@
     if (st === "countdown") {
       hint = t("hint_countdown");
     } else if (E.armed) {
-      if (st === "paused") hint = t(E.reason === "self" ? "hint_self" : "hint_window");
+      if (st === "paused") hint = t(E.reason === "self" ? "hint_self" : E.reason === "menu" ? "hint_menu" : "hint_window");
       else if (E.reason === "tool") hint = t("hint_tool");
       else if (mode === "hold_mouse") hint = t(st === "clicking" ? "hint_pvp_clicking" : "hint_pvp_" + side);
       else if (mode === "boost") hint = t(st === "clicking" ? "hint_boost" : "hint_boost_ready");
@@ -614,7 +615,7 @@
     e.target._t = setTimeout(() => sendGeneral({ start_delay: v }), 150);
   });
   $$("#action-seg [data-val]").forEach((b) => b.addEventListener("click", () => sendPreset({ action: b.dataset.val })));
-  [["#o-vary", "vary"], ["#o-lock", "window_lock"], ["#o-top", "always_on_top"], ["#o-sound", "sound"], ["#o-learn", "learn_hotkey_on"]].forEach(([sel, key]) =>
+  [["#o-vary", "vary"], ["#o-lock", "window_lock"], ["#o-top", "always_on_top"], ["#o-sound", "sound"], ["#o-learn", "learn_hotkey_on"], ["#o-menu", "menu_pause"]].forEach(([sel, key]) =>
     $(sel).addEventListener("change", (e) => { markEdit(e.target); sendGeneral({ [key]: e.target.checked }); }));
   $("#o-match").addEventListener("change", (e) => { markEdit(e.target); sendGeneral({ window_match: e.target.value }); });
   $("#o-lang").addEventListener("change", (e) => {

@@ -71,6 +71,7 @@ DEFAULTS = {
         "auto_stop": 0.0,
         "start_delay": 0.0,
         "window_lock": False,
+        "menu_pause": True,           # Minecraft: in Inventar, Truhen, Chat, Pause-Menue nicht klicken
         "window_match": "Minecraft, Lunar Client, Badlion, Feather, LabyMod",
         "sound": True,
         "always_on_top": False,
@@ -377,7 +378,8 @@ class Config:
     @staticmethod
     def _apply_general(d: dict, g: dict, allow_private: bool = False) -> None:
         out = d["general"]
-        for key in ("vary", "window_lock", "sound", "always_on_top", "tutorial_done", "learn_hotkey_on"):
+        for key in ("vary", "window_lock", "sound", "always_on_top", "tutorial_done", "learn_hotkey_on",
+                    "menu_pause"):
             if key in g:
                 out[key] = _bool(g[key])
         if "auto_stop" in g:
@@ -443,7 +445,10 @@ class Config:
         with self._lock:
             g = self.data["general"]
             match = [m.strip() for m in g["window_match"].split(",") if m.strip()]
-            return SmartSettings(window_lock=g["window_lock"], window_match=match)
+            minecraft = g["game"] in ("minecraft", "")
+            menu_windows = [m.strip() for m in GAMES["minecraft"].split(",")] + match if minecraft else []
+            return SmartSettings(window_lock=g["window_lock"], window_match=match,
+                                 menu_pause=g["menu_pause"] and minecraft, menu_windows=menu_windows)
 
     # ─── Aenderungen ─────────────────────────────────────
     def update(self, patch: dict) -> set:

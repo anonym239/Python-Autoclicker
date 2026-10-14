@@ -329,3 +329,47 @@ class InAppBrowsingTests(unittest.TestCase):
             time.sleep(0.05)
             self.assertFalse(any("avatar-btn" in c for c in win.js))
 
+
+
+class MenuPauseTests(unittest.TestCase):
+    def test_no_clicks_in_minecraft_menus(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = App(tmp, WEB, demo=True, keep_alive=True)
+            app.start()
+            b = app.backend
+            try:
+                app.handle("preset", {"id": "pvp"})
+                app.engine.start()
+                app._on_mouse("left", True)
+
+                def clicks(secs=0.4):
+                    c0 = b.clicks
+                    time.sleep(secs)
+                    return b.clicks - c0, app.engine.status()["reason"]
+
+                b.foreground, b.cursor = "Minecraft 1.21.4", False     # im Spiel
+                self.assertGreater(clicks()[0], 2)
+                b.cursor = True                                        # E gedrueckt: Inventar offen
+                time.sleep(0.1)
+                self.assertEqual(clicks(), (0, "menu"))
+                b.foreground = "Lunar Client 1.8.9 (v2.23.3)"          # auch in Lunar & Co.
+                time.sleep(0.1)
+                self.assertEqual(clicks(), (0, "menu"))
+                b.cursor = False                                       # Inventar zu -> klickt wieder
+                time.sleep(0.1)
+                self.assertGreater(clicks()[0], 2)
+                b.foreground, b.cursor = "Editor", True                # anderes Fenster: wie bisher
+                time.sleep(0.1)
+                self.assertGreater(clicks()[0], 2)
+                app.handle("settings", {"general": {"menu_pause": False}})   # abschaltbar
+                b.foreground = "Minecraft 1.21.4"
+                time.sleep(0.1)
+                self.assertGreater(clicks()[0], 2)
+                app.handle("settings", {"general": {"menu_pause": True, "game": "roblox"}})
+                app.engine.start()
+                b.foreground = "Roblox"                                # Roblox zeigt den Zeiger immer
+                time.sleep(0.1)
+                self.assertGreater(clicks()[0], 2)
+            finally:
+                app._on_mouse("left", False)
+                app.shutdown()
