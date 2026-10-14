@@ -31,6 +31,14 @@ lässt sich der Hinweis wegklicken.
 | CPS-Boost | F6 an, dann normal klicken – **jeder Klick zählt doppelt** (oder dreifach) |
 | AFK-Farm | Klickt langsam weiter (1,6 CPS = Schwert-Cooldown) – oder hält die Maustaste **gedrückt**, z. B. zum Bäume- oder Steine-Abbauen |
 
+**Home:** Beim ersten Start und nach jedem Update öffnet sich das Home-Menü (auch über „Home“ links oben).
+- **Spiel wählen:** Minecraft, Roblox, Terraria, Cookie Clicker oder „Anderes Spiel“. Außerhalb von Minecraft heißen die
+  Modi neutral (z. B. „PvP“) und die Werkzeug-Erkennung ist aus – sie kennt nur die Minecraft-Hotbar.
+- **Suche:** Adresse (z. B. `twitch.tv`) oder Suchbegriff eingeben → öffnet sich in einem eigenen AutoClicker-Fenster.
+- **Angepinnt:** Webseiten oder Programme (z. B. `spotify:` oder `C:\Spiele\Spiel.exe`) mit einem Klick öffnen.
+  Ist das Programm installiert (Spotify, Discord), startet das Programm, sonst die Webseite. Anmeldungen bleiben
+  lokal auf dem PC (WebView2-Profil unter `%LOCALAPPDATA%\AutoClicker`) – kein Konto, kein API-Key, keine Cloud.
+
 **Werkzeuge (Minecraft PvP / CPS-Boost):** Mit einer Spitzhacke kann man kein Bett abbauen, wenn der
 AutoClicker schnell klickt. Deshalb: **„Werkzeug anlernen“** drücken, im Spiel das Werkzeug in die Hand nehmen
 und einen Block abbauen (geht auch im Kreativmodus). Der AutoClicker erkennt das Item an der Hotbar und zeigt

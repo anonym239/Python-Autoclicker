@@ -8,19 +8,20 @@ import os
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 import webbrowser
 
 from . import APP_NAME, VERSION, WINDOW_TITLE
 from .backend import create_backend
-from .config import PRESET_ORDER, PRESETS, Config, user_data_dir
+from .config import GAMES, PRESET_ORDER, PRESETS, Config, user_data_dir, web_url
 from .engine import ClickEngine
 from .hotbar import (CAPTURE_GUI_H, MAX_SCALE, Shot, SlotTracker, Template, best_match, item_sample, locate,
                      merge_items, same_tool, shot_png, slot_photo, template_from_icon)
 from .keys import HotkeyMatcher
 from .server import WebServer
 from .updater import SNOOZE_SECONDS, Updater
-from .window import open_app_window, run_native_window
+from .window import close_all_windows, open_app_window, open_web_window, run_native_window
 
 RECORD_TIMEOUT = 15.0
 EXPORT_NAME = "AutoClicker-{}.json"
@@ -47,6 +48,7 @@ class App:
         self.can_self_update = bool(getattr(sys, "frozen", False)) and self.backend.name == "windows"
         self.native_window = None             # pywebview-Fenster, wenn vorhanden
         self.window_kind = ""                 # "native" | "browser" | ""
+        self.last_opened = ""                 # zuletzt im Home-Menue geoeffnet (fuer Tests)
         self.icon_path = ""                   # assets/icon.ico (scharfes Taskleisten-Icon)
         self.keep_alive = keep_alive          # Fenster schliessen beendet NICHT (Tests/--no-window)
         self.rev = 1                          # Konfig-Revision fuer die Oberflaeche
@@ -215,7 +217,7 @@ class App:
             if sound:
                 self.backend.beep("stop")
             return
-        if self.config.mode() not in TOOL_MODES:
+        if self.config.mode() not in TOOL_MODES or not self._minecraft():
             self._notify("e_learn_mode")  # nur bei Minecraft PvP und CPS-Boost
             self.backend.beep("learn_fail")
             return
@@ -255,13 +257,18 @@ class App:
             return self._game_in_front()
 
     def _tools_matter(self) -> bool:
-        return self.config.mode() in TOOL_MODES and any(self._tool_templates)
+        return self.config.mode() in TOOL_MODES and self._minecraft() and any(self._tool_templates)
+
+    def _minecraft(self) -> bool:
+        """Werkzeug-Erkennung gibt es nur fuer Minecraft (Hotbar)."""
+        return self.config.game() in ("minecraft", "")
 
     def _on_raw_input(self, kind: str, name: str, down: bool) -> None:
         """Tasten 1–9 / Mausrad im Spiel: gewaehlten Hotbar-Platz mitschreiben."""
         # auch ohne angelernte Werkzeuge mitschreiben: beim Anlern-Hotkey ist das Werkzeug
         # schon gewaehlt, bevor das Anlernen startet
-        if not down or not (self.learning or self.config.mode() in TOOL_MODES) or not self._in_game():
+        if not down or not (self.learning or self.config.mode() in TOOL_MODES and self._minecraft()) \
+                or not self._in_game():
             return
         before = self.slots.slot
         if kind == "k":
@@ -366,20 +373,20 @@ class App:
                 self._notify(self.learn_error)
                 self.backend.beep("learn_fail")
                 return
+            same = same_tool(item, self._tool_templates)
+            saved = self.config.learn_tool(item.mask_hex(), item.icon(), same, photo)
+            # erst Ergebnis melden, DANN "fertig" – wer auf das Ende wartet, sieht schon die Meldung
+            self._notify("n_tool_saved" if saved else "e_max_tools")
+            self.learn_error = ""
             self.learning = False
             self.engine.suspend(False)  # Anlernen vorbei -> Klicker laeuft weiter
-            self.learn_error = ""
-            same = same_tool(item, self._tool_templates)
-            if not self.config.learn_tool(item.mask_hex(), item.icon(), same, photo):
-                self._notify("e_max_tools")
-                self.backend.beep("learn_fail")
+            self.backend.beep("learn_ok" if saved else "learn_fail")
+            if not saved:
                 return
-            nr = f"ersetzt Nr. {same + 1}" if same >= 0 else f"neu als Nr. {len(self.config.tools())}"
-            self._log(f"  -> {nr} im Kit {self.config.active_kit_name()!r}")
-            self._notify("n_tool_saved")
-            self.backend.beep("learn_ok")
             self._apply()
             self._save_soon()
+        nr = f"ersetzt Nr. {same + 1}" if same >= 0 else f"neu als Nr. {len(self.config.tools())}"
+        self._log(f"  -> {nr} im Kit {self.config.active_kit_name()!r}")
 
     def _log(self, line: str) -> None:
         """Kleines Protokoll fuer die Fehlersuche (hotbar-log.txt, nur die letzten Zeilen)."""
@@ -480,6 +487,69 @@ class App:
         self._apply()
         return self.state()
 
+    # ─── Home-Menue ─────────────────────────────────────
+    def home_action(self, body: dict):
+        op = body.get("op")
+        if op == "open":  # angepinnte Seite/Programm (index) oder Suche/Adresse (text)
+            index = body.get("index")
+            if isinstance(index, int):
+                pins = self.config.pins()
+                if not 0 <= index < len(pins):
+                    return {"error": "e_not_found"}
+                pin = pins[index]
+                if not self._open_target(pin.get("url", ""), pin.get("app", ""), pin["name"]):
+                    return {"error": "e_open"}
+            else:
+                text = str(body.get("text", "")).strip()
+                if not text:
+                    return {"error": "e_open"}
+                url = web_url(text) if "." in text and " " not in text else ""
+                url = url or "https://www.google.com/search?q=" + urllib.parse.quote_plus(text[:300])
+                if not self._open_target(url, "", url.split("://", 1)[1].split("/")[0]):
+                    return {"error": "e_open"}
+            return {"ok": True}
+        if op == "pin_add":
+            err = self.config.add_pin(str(body.get("name", "")), str(body.get("target", "")))
+            if err:
+                return {"error": err}
+        elif op == "pin_remove":
+            index = body.get("index")
+            if not isinstance(index, int) or not self.config.remove_pin(index):
+                return {"error": "e_not_found"}
+        else:
+            return {"error": "Unbekannte Aktion"}
+        self._save_soon()
+        self.rev += 1
+        return self.state()
+
+    def _open_target(self, url: str, app: str, title: str) -> bool:
+        """Programm starten (falls installiert) oder Webseite im eigenen Fenster oeffnen."""
+        self.last_opened = app or url
+        if self.keep_alive:  # Tests / ohne Fenster: nichts wirklich oeffnen
+            return True
+        if app and sys.platform == "win32" and self._app_available(app):
+            try:
+                os.startfile(app)  # noqa: S606 – nur geprueftes Programm/Protokoll (config.app_target)
+                return True
+            except OSError:
+                pass
+        if not url:
+            return False
+        if self.window_kind == "native" and open_web_window(url, f"{title} – {APP_NAME}"):
+            return True
+        return webbrowser.open(url)
+
+    @staticmethod
+    def _app_available(app: str) -> bool:
+        if app.endswith(":") or app.endswith("://"):  # Protokoll: ist ein Programm dafuer registriert?
+            try:
+                import winreg
+                with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, app.split(":")[0]):
+                    return True
+            except OSError:
+                return False
+        return os.path.isfile(app)
+
     def _export_tools(self):
         """Werkzeuge (Umriss, Bild, Foto) als JSON-Datei in den Download-Ordner schreiben."""
         tools = self.config.tools()
@@ -564,6 +634,8 @@ class App:
                 "tools": self.config.tools(),
                 "kits": self.config.kits(),
                 "kit": self.config.kit_index(),
+                "pins": self.config.pins(),
+                "games": list(GAMES),
                 "general": general,
             }
             out["info"] = {
@@ -579,7 +651,12 @@ class App:
             return self.action(body.get("do"))
         if name == "settings":
             general = body.get("general") or {}
+            game_before = self.config.game()
             changed = self.config.update(body)
+            if self.config.game() != game_before:
+                self.engine.stop("mode")  # anderes Spiel -> Klicker aus (wie beim Moduswechsel)
+                if self.learning:
+                    self.tools_action({"op": "cancel"})
             if general.get("learn_hotkey_on") and any(
                     h["key"] == self.config.learn_hotkey() for h in self.config.hotkeys()):
                 self._notify("e_key_taken")  # Taste ist schon ein anderer Hotkey
@@ -608,6 +685,8 @@ class App:
             return self.hotkeys(body)
         if name == "tools":
             return self.tools_action(body)
+        if name == "home":
+            return self.home_action(body)
         if name == "update":
             return self.update_action(str(body.get("op", "")))
         if name == "bye":
@@ -803,6 +882,7 @@ def _close_on_quit(app: App, win) -> None:
         win.destroy()
     except Exception:
         pass
+    close_all_windows()  # auch geoeffnete Webseiten-Fenster
 
 
 def _selftest(app: App, path: str) -> None:
