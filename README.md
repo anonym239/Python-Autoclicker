@@ -31,16 +31,6 @@ lässt sich der Hinweis wegklicken.
 | CPS-Boost | F6 an, dann normal klicken – **jeder Klick zählt doppelt** (oder dreifach) |
 | AFK-Farm | Klickt langsam weiter (1,6 CPS = Schwert-Cooldown) – oder hält die Maustaste **gedrückt**, z. B. zum Bäume- oder Steine-Abbauen |
 
-**Home:** Beim ersten Start und nach jedem Update öffnet sich das Home-Menü (auch über „Home“ links oben).
-- **Spiel wählen:** Minecraft, Roblox, Terraria, Cookie Clicker oder „Anderes Spiel“. Außerhalb von Minecraft heißen die
-  Modi neutral (z. B. „PvP“) und die Werkzeug-Erkennung ist aus – sie kennt nur die Minecraft-Hotbar.
-- **Suche:** Adresse (z. B. `twitch.tv`) oder Suchbegriff eingeben → öffnet sich direkt im AutoClicker-Fenster,
-  unten links führt „◀ AutoClicker“ zurück. **Anmelden** (oben rechts) meldet dich bei Google an – das gilt dann
-  auch für YouTube & Co.
-- **Angepinnt:** Webseiten oder Programme (z. B. `spotify:` oder `C:\Spiele\Spiel.exe`) mit einem Klick öffnen.
-  Ist das Programm installiert (Spotify, Discord), startet das Programm, sonst die Webseite. Anmeldungen bleiben
-  lokal auf dem PC (WebView2-Profil unter `%LOCALAPPDATA%\AutoClicker`) – kein Konto, kein API-Key, keine Cloud.
-
 **Menüs (Minecraft):** In Inventar, Truhen, Chat oder Pause-Menü klickt der AutoClicker nicht (dort ist der
 Mauszeiger sichtbar, im Spiel nicht). Abschaltbar unter Einstellungen → „In Menüs nicht klicken“.
 

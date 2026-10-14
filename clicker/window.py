@@ -111,33 +111,6 @@ def run_native_window(url: str, title: str, on_top: bool, icon: str = "", on_rea
         return False
 
 
-def open_web_window(url: str, title: str) -> bool:
-    """Webseite (z. B. YouTube) in einem weiteren eigenen Fenster oeffnen. Es teilt sich
-    WebView2 und das Profil mit dem AutoClicker-Fenster: Anmeldungen bleiben lokal auf dem
-    PC gespeichert. -> False, wenn kein eigenes Fenster laeuft (dann Standardbrowser)."""
-    try:
-        import webview  # pywebview
-        if not webview.windows:
-            return False
-        webview.create_window(title, url, width=1200, height=800, min_size=(400, 300))
-        return True
-    except Exception:
-        return False
-
-
-def close_all_windows() -> None:
-    """Programm wird beendet: auch die Webseiten-Fenster schliessen."""
-    try:
-        import webview
-        for win in list(webview.windows):
-            try:
-                win.destroy()
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-
 def open_app_window(url: str, folder: str, use_browser: bool = False):
     """-> subprocess.Popen des App-Fensters oder None (Standardbrowser/Fehler)."""
     exe = None if use_browser else find_browser()

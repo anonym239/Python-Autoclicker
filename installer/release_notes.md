@@ -1,4 +1,4 @@
-**Neu in dieser Version:** In Minecraft klickt der AutoClicker in keinem Menü mehr – Inventar (E), Truhen, Öfen, Chat, Pause-Menü usw. Sobald das Menü zu ist, klickt er weiter. Abschaltbar in den Einstellungen unter „Spiel & Fenster“ → „In Menüs nicht klicken“.
+**Neu in dieser Version:** Das Home-Menü (Spielauswahl, Suche, angepinnte Seiten, Anmelden) ist wieder raus – der AutoClicker ist ganz auf Minecraft ausgerichtet und startet direkt mit den Modi. Kits, Werkzeug-Erkennung, Anlern-Hotkey und „In Menüs nicht klicken“ bleiben.
 
 **Download:** `AutoClicker-Setup-….exe` herunterladen und starten.
 Wer AutoClicker schon installiert hat, bekommt das Update auch direkt in der App angezeigt.
