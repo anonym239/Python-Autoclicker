@@ -1,4 +1,4 @@
-**Neu in dieser Version: Home-Menü.** Beim ersten Start und nach jedem Update (oder über „Home“ links oben) wählst du dein Spiel – Minecraft, Roblox, Terraria, Cookie Clicker oder ein anderes. Außerhalb von Minecraft heißen die Modi neutral (z. B. „PvP“). Dazu gibt es eine Suchleiste und angepinnte Seiten/Programme wie YouTube, Spotify, Discord und Twitch: Webseiten öffnen sich in einem eigenen AutoClicker-Fenster, installierte Programme starten direkt. Anmeldungen bleiben lokal auf deinem PC – kein Konto, kein API-Key.
+**Neu in dieser Version:** Webseiten aus dem Home-Menü (YouTube, Suche, angepinnte Seiten) öffnen sich jetzt direkt im AutoClicker-Fenster – unten links führt „◀ AutoClicker“ zurück. Oben rechts im Home-Menü gibt es „Anmelden“ (Google-Konto): einmal angemeldet, bist du auch bei YouTube & Co. drin – gespeichert nur auf deinem PC. Die Spiele zeigen jetzt ihre echten Icons.
 
 **Download:** `AutoClicker-Setup-….exe` herunterladen und starten.
 Wer AutoClicker schon installiert hat, bekommt das Update auch direkt in der App angezeigt.

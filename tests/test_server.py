@@ -140,6 +140,10 @@ class ServerTests(unittest.TestCase):
         code, body = self.req("/api/hotkeys", {"op": "delete", "index": 99})
         self.assertEqual(code, 400)
 
+    def test_back_link_only_while_browsing(self):
+        code, body = self.req("/back", token=False)
+        self.assertEqual(code, 404)                  # nicht auf einer Webseite -> nichts passiert
+
     def test_static_files_and_traversal(self):
         code, body = self.req("/", token=False)
         self.assertEqual(code, 200)
@@ -229,3 +233,43 @@ class HomeTests(unittest.TestCase):
         again = Config(self.tmp.name)
         again.load()
         self.assertEqual(again.pins(), app.config.pins())
+
+
+class FakeWindow:
+    """Ersatz fuer das pywebview-Fenster."""
+
+    def __init__(self):
+        self.loaded, self.js, self.url = [], [], ""
+
+    def load_url(self, url):
+        self.loaded.append(url)
+        self.url = url
+
+    def get_current_url(self):
+        return self.url
+
+    def evaluate_js(self, code):
+        self.js.append(code)
+
+
+class InAppBrowsingTests(unittest.TestCase):
+    def test_websites_open_in_the_app_window(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = App(tmp, WEB, demo=True, keep_alive=False)
+            win = FakeWindow()
+            app.window_kind, app.native_window = "native", win
+            self.assertEqual(app.handle("home", {"op": "open", "index": 0}), {"ok": True})   # YouTube
+            self.assertEqual(win.loaded, ["https://www.youtube.com"])
+            self.assertTrue(app.browsing)
+            app.on_page_loaded()                         # Seite geladen -> Knopf zurueck
+            self.assertIn("/back", win.js[-1])
+            self.assertNotIn(app.token, win.js[-1])      # die Webseite bekommt den Code nie zu sehen
+            app.handle("home", {"op": "signin"})
+            self.assertTrue(win.loaded[-1].startswith("https://accounts.google.com/"))
+            self.assertTrue(app.back_to_app())
+            self.assertEqual(win.loaded[-1], app.local_url() + "&client=desktop#home")
+            app.on_page_loaded()                         # eigene Oberflaeche: kein Knopf
+            self.assertEqual(len(win.js), 1)
+            app.state(client="desktop")                  # wieder in der App
+            self.assertFalse(app.browsing)
+            self.assertFalse(app.back_to_app())

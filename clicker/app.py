@@ -30,6 +30,22 @@ TOOL_RECHECK = 0.12     # bei gedrueckter Maustaste so oft nachschauen, was in d
 TOOL_MODES = ("hold_mouse", "boost")
 NEW = "new"  # Aufnahme-Ziel fuer einen neuen Hotkey
 LEARN = "learn"  # Aufnahme-Ziel / Hotkey-Platz fuer "Werkzeug anlernen"
+SIGN_IN_URL = "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fwww.youtube.com%2F"
+# Auf Webseiten im Programmfenster: schwebender Knopf zurueck zur App (bleibt auch bei
+# Seiten, die ihren Inhalt neu aufbauen)
+BACK_BUTTON_JS = """(function () {
+  function add() {
+    if (document.getElementById("__ac_back")) return;
+    var b = document.createElement("a");
+    b.id = "__ac_back"; b.href = "__BACK__"; b.textContent = "\u25C0 __LABEL__";
+    b.style.cssText = "position:fixed;left:14px;bottom:14px;z-index:2147483647;padding:9px 15px;" +
+      "border-radius:20px;background:#0067c0;color:#fff;font:600 13px 'Segoe UI',sans-serif;" +
+      "text-decoration:none;box-shadow:0 2px 10px rgba(0,0,0,.35);";
+    (document.body || document.documentElement).appendChild(b);
+  }
+  add();
+  if (!window.__acBackTimer) window.__acBackTimer = setInterval(add, 1500);
+})();"""
 
 
 class App:
@@ -72,6 +88,7 @@ class App:
         self._notice_id = 0
         self._last_desktop_poll = 0.0
         self._bye_at = 0.0
+        self.browsing = False                 # Hauptfenster zeigt gerade eine Webseite (Home-Menue)
         self._save_timer: threading.Timer | None = None
         self._lock = threading.RLock()
         self.quit_event = threading.Event()
@@ -127,7 +144,8 @@ class App:
                 self.recording = None
             if self._bye_at and now - self._bye_at > 3.0:
                 self._bye_at = 0.0
-                if self._last_desktop_poll < now - 3.0 and not self.keep_alive:
+                # Seite im Fenster gewechselt (Webseite geoeffnet) ist kein Schliessen
+                if self._last_desktop_poll < now - 3.0 and not self.keep_alive and not self.browsing:
                     self.quit_event.set()  # Fenster wurde geschlossen
             if now - last_save > 30 and self.engine.lifetime_clicks() != saved_clicks:
                 self._store_stats()
@@ -508,6 +526,8 @@ class App:
                 if not self._open_target(url, "", url.split("://", 1)[1].split("/")[0]):
                     return {"error": "e_open"}
             return {"ok": True}
+        if op == "signin":  # Google-Konto: gilt danach fuer YouTube & Co. (lokal gespeichert)
+            return {"ok": True} if self._open_target(SIGN_IN_URL, "", "Google") else {"error": "e_open"}
         if op == "pin_add":
             err = self.config.add_pin(str(body.get("name", "")), str(body.get("target", "")))
             if err:
@@ -535,9 +555,44 @@ class App:
                 pass
         if not url:
             return False
-        if self.window_kind == "native" and open_web_window(url, f"{title} – {APP_NAME}"):
-            return True
+        if self.window_kind == "native" and self.native_window is not None:
+            try:  # direkt im AutoClicker-Fenster; "◀ AutoClicker" unten links fuehrt zurueck
+                self.browsing = True
+                self.native_window.load_url(url)
+                return True
+            except Exception:
+                self.browsing = False
+            if open_web_window(url, f"{title} – {APP_NAME}"):
+                return True
         return webbrowser.open(url)
+
+    def on_page_loaded(self, *_args) -> None:
+        """Webseite im Fenster geladen: Knopf zurueck zur App einblenden."""
+        win = self.native_window
+        if not self.browsing or win is None:
+            return
+        try:
+            url = win.get_current_url() or ""
+        except Exception:
+            url = ""
+        base = f"http://127.0.0.1:{self.server.port}/"
+        if url.startswith(base):
+            return
+        try:
+            win.evaluate_js(BACK_BUTTON_JS.replace("__BACK__", base + "back").replace("__LABEL__", APP_NAME))
+        except Exception:
+            pass
+
+    def back_to_app(self) -> bool:
+        """Knopf "◀ AutoClicker" auf einer Webseite: zurueck ins Home-Menue.
+        Der Link selbst enthaelt keinen Code – den haengt erst das Programm an."""
+        if not self.browsing or self.native_window is None:
+            return False
+        try:
+            self.native_window.load_url(self.local_url() + "&client=desktop#home")
+            return True
+        except Exception:
+            return False
 
     @staticmethod
     def _app_available(app: str) -> bool:
@@ -609,6 +664,7 @@ class App:
     def state(self, since: str = "-1", client: str = "") -> dict:
         if client == "desktop":
             self._last_desktop_poll = time.monotonic()
+            self.browsing = False  # wieder in der App
         out = {
             "rev": self.rev,
             "engine": self.engine.status(),
@@ -853,6 +909,10 @@ def main(argv=None) -> int:
             def ready(win):
                 app.native_window = win
                 app.window_kind = "native"
+                try:
+                    win.events.loaded += app.on_page_loaded
+                except Exception:
+                    pass
                 # Programm wird beendet (z. B. fuer ein Update) -> Fenster schliessen
                 threading.Thread(target=_close_on_quit, args=(app, win), daemon=True).start()
             native_ok = run_native_window(url, WINDOW_TITLE, app.config.data["general"]["always_on_top"],
