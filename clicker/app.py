@@ -393,18 +393,19 @@ class App:
                 return
             same = same_tool(item, self._tool_templates)
             saved = self.config.learn_tool(item.mask_hex(), item.icon(), same, photo)
-            # erst Ergebnis melden, DANN "fertig" – wer auf das Ende wartet, sieht schon die Meldung
+            # erst alles erledigen, DANN "fertig" – wer auf das Ende wartet, findet alles vor
+            if saved:
+                self._tool_templates = [template_from_icon(t["icon"]) for t in self.config.tools()]
+                nr = f"ersetzt Nr. {same + 1}" if same >= 0 else f"neu als Nr. {len(self.config.tools())}"
+                self._log(f"  -> {nr} im Kit {self.config.active_kit_name()!r}")
             self._notify("n_tool_saved" if saved else "e_max_tools")
             self.learn_error = ""
             self.learning = False
             self.engine.suspend(False)  # Anlernen vorbei -> Klicker laeuft weiter
             self.backend.beep("learn_ok" if saved else "learn_fail")
-            if not saved:
-                return
-            self._apply()
-            self._save_soon()
-        nr = f"ersetzt Nr. {same + 1}" if same >= 0 else f"neu als Nr. {len(self.config.tools())}"
-        self._log(f"  -> {nr} im Kit {self.config.active_kit_name()!r}")
+            if saved:
+                self._apply()
+                self._save_soon()
 
     def _log(self, line: str) -> None:
         """Kleines Protokoll fuer die Fehlersuche (hotbar-log.txt, nur die letzten Zeilen)."""
