@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 import secrets
 import threading
 
@@ -36,6 +37,23 @@ PRESETS = {
 }
 PRESET_ORDER = ("standard", "pvp", "boost", "afk")
 
+# Spiele im Home-Menue: Fenstername fuer "Nur klicken, wenn das Spiel vorne ist".
+# Nur Minecraft hat Werkzeug-Erkennung (Hotbar) und Minecraft-Namen bei den Modi.
+GAMES = {
+    "minecraft": "Minecraft, Lunar Client, Badlion, Feather, LabyMod",
+    "roblox": "Roblox",
+    "terraria": "Terraria",
+    "cookie": "Cookie Clicker",
+    "other": "",
+}
+MAX_PINS = 12
+DEFAULT_PINS = [
+    {"name": "YouTube", "url": "https://www.youtube.com"},
+    {"name": "Spotify", "url": "https://open.spotify.com", "app": "spotify:"},
+    {"name": "Discord", "url": "https://discord.com/app", "app": "discord:"},
+    {"name": "Twitch", "url": "https://www.twitch.tv"},
+]
+
 DEFAULTS = {
     "version": 6,
     "preset": "standard",
@@ -45,6 +63,9 @@ DEFAULTS = {
     # Werkzeug = Umriss des Items (256 Bit hex) + Bild
     "kits": [{"name": "Kit 1", "tools": []}],
     "kit": 0,                         # gerade benutztes Kit
+    # Home-Menue: angepinnte Seiten/Programme. url = Webseite (eigenes Fenster),
+    # app = Programm oder Protokoll (z. B. "spotify:") – wird bevorzugt, wenn installiert
+    "pins": DEFAULT_PINS,
     "general": {
         "vary": False,
         "auto_stop": 0.0,
@@ -60,6 +81,8 @@ DEFAULTS = {
         "tutorial_done": False,
         "learn_hotkey_on": False,     # Hotkey startet "Werkzeug anlernen" direkt im Spiel
         "learn_hotkey": "f7",
+        "game": "",                   # gewaehltes Spiel (siehe GAMES), leer = noch nicht gewaehlt
+        "home_version": "",           # Version, bei der das Home-Menue zuletzt gezeigt wurde
         "update_skip": "",            # diese Version nicht mehr anzeigen
         "update_snooze_until": 0.0,   # "In 5 Tagen erinnern" (Unix-Zeit)
     },
@@ -145,6 +168,63 @@ def sanitize_tools(items) -> list:
             entry["photo"] = photo
         out.append(entry)
     return out[:MAX_TOOLS]
+
+
+_FILE_ENDINGS = {"exe", "bat", "cmd", "lnk", "url", "msi", "ps1", "vbs", "dll", "jar", "txt"}
+_HOST = re.compile(r"^(localhost|[a-z0-9-]+(\.[a-z0-9-]+)+)(:\d{1,5})?$", re.I)
+
+
+def web_url(text) -> str:
+    """Eingabe ("youtube.com", "https://…") -> https-Adresse, sonst "" (nur http/https)."""
+    t = str(text or "").strip()
+    if not t or len(t) > 500 or any(c.isspace() for c in t):
+        return ""
+    if not t.lower().startswith(("http://", "https://")):
+        t = "https://" + t
+    host = t.split("://", 1)[1].split("/")[0].split("?")[0].split("#")[0]
+    if not _HOST.match(host) or host.split(":")[0].rsplit(".", 1)[-1].lower() in _FILE_ENDINGS:
+        return ""  # "spiel.exe" ist ein Programm, keine Webseite
+    return t
+
+
+def app_target(text) -> str:
+    """Programm (Windows-Pfad zu .exe/.lnk/.url) oder Protokoll wie "spotify:" – sonst ""."""
+    t = str(text or "").strip().strip('"')
+    if not t or len(t) > 260:
+        return ""
+    if re.match(r"^[a-zA-Z]:\\", t) and t.lower().endswith((".exe", ".lnk", ".url")):
+        return t
+    scheme = t.lower()
+    if re.match(r"^[a-z][a-z0-9+.-]{1,30}:(//)?$", scheme) and not scheme.startswith(("http", "file", "javascript", "data")):
+        return scheme
+    return ""
+
+
+def pin_name(url: str, app: str) -> str:
+    """Name fuer eine angepinnte Seite / ein Programm, wenn keiner angegeben ist."""
+    if url:
+        host = url.split("://", 1)[1].split("/")[0].split(":")[0]
+        host = host[4:] if host.startswith("www.") else host
+        return host.split(".")[0].capitalize() or "Web"
+    base = re.split(r"[\\/]", app.rstrip(":/"))[-1]
+    return (base.rsplit(".", 1)[0] if "\\" in app else base).capitalize() or "App"
+
+
+def sanitize_pins(raw) -> list:
+    out = []
+    for p in raw if isinstance(raw, list) else []:
+        if not isinstance(p, dict) or len(out) >= MAX_PINS:
+            continue
+        url, app = web_url(p.get("url")), app_target(p.get("app"))
+        if not url and not app:
+            continue
+        entry = {"name": " ".join(str(p.get("name") or "").split())[:24] or pin_name(url, app)}
+        if url:
+            entry["url"] = url
+        if app:
+            entry["app"] = app
+        out.append(entry)
+    return out
 
 
 def kit_name(name, fallback: str = "Kit") -> str:
@@ -259,6 +339,10 @@ class Config:
                 d["presets"][pid] = sanitize_preset(presets[pid], d["presets"][pid])
         if raw.get("preset") in PRESETS:
             d["preset"] = raw["preset"]
+        if isinstance(raw.get("pins"), list):
+            d["pins"] = sanitize_pins(raw["pins"])
+        if "game" not in (raw.get("general") or {}):
+            d["general"]["game"] = "minecraft"  # bis 6.17 gab es nur Minecraft
         kits = sanitize_kits(raw.get("kits"))
         if kits:
             d["kits"] = kits
@@ -300,6 +384,13 @@ class Config:
             out["theme"] = g["theme"]
         if g.get("language") in LANGUAGES:
             out["language"] = g["language"]
+        if g.get("game") in GAMES and g["game"] != out["game"]:
+            # Fenstername mitwechseln, solange er nicht selbst geaendert wurde
+            if GAMES[g["game"]] and out["window_match"] in GAMES.values():
+                out["window_match"] = GAMES[g["game"]]
+            out["game"] = g["game"]
+        if "home_version" in g:
+            out["home_version"] = str(g["home_version"] or "")[:20]
         if allow_private:
             tok = g.get("token")
             if isinstance(tok, str) and 8 <= len(tok) <= 64 and tok.replace("-", "").replace("_", "").isalnum():
@@ -531,6 +622,35 @@ class Config:
             if self.data["kit"] >= len(kits) or self.data["kit"] > index:
                 self.data["kit"] = max(0, self.data["kit"] - 1)
         return True
+
+    # ─── Home-Menue ──────────────────────────────────────
+    def game(self) -> str:
+        return self.data["general"]["game"]
+
+    def pins(self) -> list:
+        with self._lock:
+            return [dict(p) for p in self.data["pins"]]
+
+    def add_pin(self, name: str, target: str) -> str | None:
+        """Seite ("youtube.com") oder Programm ("C:\\…\\Spiel.exe", "spotify:") anpinnen.
+        -> Fehlercode oder None."""
+        app = app_target(target)
+        url = "" if app else web_url(target)
+        if not url and not app:
+            return "e_pin_target"
+        with self._lock:
+            pins = self.data["pins"]
+            if len(pins) >= MAX_PINS:
+                return "e_max_pins"
+            pins.extend(sanitize_pins([{"name": name, "url": url, "app": app}]))
+        return None
+
+    def remove_pin(self, index: int) -> bool:
+        with self._lock:
+            if 0 <= index < len(self.data["pins"]):
+                self.data["pins"].pop(index)
+                return True
+        return False
 
     def new_token(self) -> str:
         with self._lock:

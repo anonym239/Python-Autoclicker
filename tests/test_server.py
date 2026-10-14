@@ -158,3 +158,74 @@ class ServerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HomeTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.app = App(self.tmp.name, WEB, demo=True, keep_alive=True)
+
+    def tearDown(self):
+        self.app.shutdown()
+        self.tmp.cleanup()
+
+    def test_new_install_has_no_game_and_default_pins(self):
+        st = self.app.state()
+        g = st["config"]["general"]
+        self.assertEqual(g["game"], "")             # -> Home-Menue fragt nach dem Spiel
+        self.assertEqual(g["home_version"], "")
+        self.assertIn("roblox", st["config"]["games"])
+        self.assertEqual([p["name"] for p in st["config"]["pins"]], ["YouTube", "Spotify", "Discord", "Twitch"])
+
+    def test_old_settings_keep_minecraft(self):
+        from clicker.config import Config
+        with open(os.path.join(self.tmp.name, "clicker_settings.json"), "w", encoding="utf-8") as f:
+            json.dump({"general": {"sound": True}}, f)
+        c = Config(self.tmp.name)
+        c.load()
+        self.assertEqual(c.game(), "minecraft")
+
+    def test_pick_game_switches_names_and_tools(self):
+        app = self.app
+        app.handle("preset", {"id": "pvp"})
+        app.engine.start()
+        app.handle("settings", {"general": {"game": "roblox"}})
+        self.assertFalse(app.engine.armed)              # anderes Spiel -> Klicker aus
+        g = app.config.data["general"]
+        self.assertEqual(g["game"], "roblox")
+        self.assertEqual(g["window_match"], "Roblox")   # Fenstername wechselt mit
+        self.assertFalse(app._minecraft())
+        app._on_hotkey("learn", True)                   # Anlernen gibt es nur in Minecraft
+        self.assertFalse(app.learning)
+        app.handle("settings", {"general": {"window_match": "Mein Spiel"}})
+        app.handle("settings", {"general": {"game": "minecraft"}})
+        self.assertEqual(g["window_match"], "Mein Spiel")  # selbst geaendert -> bleibt
+        app.handle("settings", {"general": {"game": "quatsch", "home_version": "6.18"}})
+        self.assertEqual((g["game"], g["home_version"]), ("minecraft", "6.18"))
+
+    def test_pins_and_open(self):
+        app = self.app
+        st = app.handle("home", {"op": "pin_add", "target": "roblox.com", "name": ""})
+        self.assertEqual(st["config"]["pins"][-1], {"name": "Roblox", "url": "https://roblox.com"})
+        st = app.handle("home", {"op": "pin_add", "target": "C:\\Spiele\\Spiel.exe", "name": "Mein Spiel"})
+        self.assertEqual(st["config"]["pins"][-1], {"name": "Mein Spiel", "app": "C:\\Spiele\\Spiel.exe"})
+        for bad in ("hallo welt", "cmd.exe", "javascript:alert(1)", "C:\\x\\a.bat", ""):
+            self.assertEqual(app.handle("home", {"op": "pin_add", "target": bad}), {"error": "e_pin_target"}, bad)
+        while len(app.config.pins()) < 12:
+            app.handle("home", {"op": "pin_add", "target": "example.com"})
+        self.assertEqual(app.handle("home", {"op": "pin_add", "target": "example.com"}), {"error": "e_max_pins"})
+        # oeffnen: Pin, Adresse, Suche
+        self.assertEqual(app.handle("home", {"op": "open", "index": 1}), {"ok": True})
+        self.assertEqual(app.last_opened, "spotify:")    # Programm wird bevorzugt
+        app.handle("home", {"op": "open", "text": "twitch.tv/papaplatte"})
+        self.assertEqual(app.last_opened, "https://twitch.tv/papaplatte")
+        app.handle("home", {"op": "open", "text": "beste roblox spiele"})
+        self.assertEqual(app.last_opened, "https://www.google.com/search?q=beste+roblox+spiele")
+        self.assertEqual(app.handle("home", {"op": "open", "index": 99}), {"error": "e_not_found"})
+        st = app.handle("home", {"op": "pin_remove", "index": 0})
+        self.assertNotIn("YouTube", [p["name"] for p in st["config"]["pins"]])
+        app.config.save()
+        from clicker.config import Config
+        again = Config(self.tmp.name)
+        again.load()
+        self.assertEqual(again.pins(), app.config.pins())

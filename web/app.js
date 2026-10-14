@@ -49,9 +49,18 @@
     return sys.find((l) => TEXTS[l]) || "en";
   }
   // t("hint_idle", { key: "F6" }) – fehlt ein Text, gilt Englisch, dann Deutsch, dann der Schluessel selbst
+  // Nicht-Minecraft-Spiel gewaehlt: neutrale Texte ("PvP" statt "Minecraft PvP") – Schluessel + "_g"
+  let neutral = false;
+  const pick = (k) => (TEXTS[lang] || {})[k] ?? (TEXTS.en || {})[k] ?? (TEXTS.de || {})[k];
   function t(key, vars) {
-    const raw = (TEXTS[lang] || {})[key] ?? (TEXTS.en || {})[key] ?? (TEXTS.de || {})[key] ?? key;
+    const raw = (neutral && pick(key + "_g")) || (pick(key) ?? key);
     return vars ? raw.replace(/\{(\w+)\}/g, (m, k) => (vars[k] ?? m)) : raw;
+  }
+  function applyTexts() {
+    $$("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+    $$("[data-i18n-aria]").forEach((el) => el.setAttribute("aria-label", t(el.dataset.i18nAria)));
+    $$("[data-i18n-title]").forEach((el) => { el.title = t(el.dataset.i18nTitle); });
+    $$("[data-i18n-ph]").forEach((el) => { el.placeholder = t(el.dataset.i18nPh); });
   }
   let langReady = false;
   function setLang(setting) {
@@ -62,9 +71,7 @@
     lang = next;
     locale = { de: "de-DE", en: "en-US", pt: "pt-BR", zh: "zh-CN" }[lang] || lang;
     document.documentElement.lang = lang;
-    $$("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
-    $$("[data-i18n-aria]").forEach((el) => el.setAttribute("aria-label", t(el.dataset.i18nAria)));
-    $$("[data-i18n-title]").forEach((el) => { el.title = t(el.dataset.i18nTitle); });
+    applyTexts();
     const sel = $("#o-lang");
     sel.textContent = "";
     [["auto", t("lang_auto")], ...LANGS].forEach(([val, label]) => {
@@ -151,9 +158,13 @@
   function renderConfig() {
     const g = C.general, cur = C.current, mode = C.mode;
     applyTheme(g.theme);
+    const wasNeutral = neutral;
+    neutral = !!g.game && g.game !== "minecraft";
     if (setLang(g.language || "auto")) renderTour();
+    else if (neutral !== wasNeutral) { applyTexts(); renderTour(); }
+    $("#mode-label").textContent = t("mode") + (g.game ? " · " + gameName(g.game) : "");
     if (canSet($("#o-lang"))) $("#o-lang").value = g.language || "auto";
-    $$(".preset").forEach((b) => b.setAttribute("aria-current", String(b.dataset.id === C.preset)));
+    $$(".preset").forEach((b) => b.setAttribute("aria-current", String(!homeOpen && b.dataset.id === C.preset)));
     $("#title").textContent = t("p_" + C.preset);
     $("#desc").textContent = t("desc_" + C.preset);
 
@@ -177,13 +188,22 @@
     setChecked($("#o-top"), g.always_on_top);
     setChecked($("#o-sound"), g.sound);
     setChecked($("#o-learn"), g.learn_hotkey_on);
-    $("#o-learn-row").hidden = !g.learn_hotkey_on;
+    $("#o-learn-row").hidden = !g.learn_hotkey_on || neutral;
+    $$(".mc-only").forEach((el) => { el.hidden = neutral; });  // Werkzeuge gibt es nur in Minecraft
     pressed("#theme-seg", g.theme);
     $("#version").textContent = t("version", { v: INFO.version }) + (INFO.backend === "demo" ? " · Demo" : "");
 
     renderHotkeys();
     renderTools();
-    if (!tourShown && !g.tutorial_done) { tourShown = true; openTour(); }
+    renderHome();
+    if (!homeChecked) {  // erster Start oder neue Version -> Home-Menue (Spiel waehlen)
+      homeChecked = true;
+      if (!g.game || g.home_version !== INFO.version) {
+        openHome();
+        sendGeneral({ home_version: INFO.version });
+      }
+    }
+    if (!tourShown && !g.tutorial_done && !homeOpen) { tourShown = true; openTour(); }
   }
 
   function renderHotkeys() {
@@ -250,7 +270,7 @@
   const PICKAXE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.8 3.2c2.9-.4 5.3.3 6.6 1.4-2.2-.5-4.6-.3-6.5.4l1.5 1.5-1.4 1.4-1.4-1.4-9.9 9.9 1.4 1.4-1.4 1.4-2.8-2.8 1.4-1.4 1.4 1.4 9.9-9.9L12.2 4c.8-.4 1.7-.7 2.6-.8zM19 7.5c.7 1.9.9 4.3.4 6.5-1.1-1.3-1.8-3.7-1.4-6.6l1 .1z"/></svg>';
   function renderTools() {
     if (!C) return;
-    const show = C.mode === "hold_mouse" || C.mode === "boost";
+    const show = (C.mode === "hold_mouse" || C.mode === "boost") && !neutral;  // Hotbar gibt es nur in Minecraft
     $("#row-tools").hidden = !show;
     $("#row-kit").hidden = !show;
     const kitSel = $("#kit-select");
@@ -344,6 +364,108 @@
     reader.onerror = () => toast(t("e_import"));
     reader.readAsText(file);
   });
+
+  // ─── Home-Menue ─────────────────────────────────────────
+  // Spiele: Name, Bild, Farbe. Nur Minecraft hat Werkzeug-Erkennung und eigene Modus-Namen.
+  const GAMES = {
+    minecraft: { name: "Minecraft", icon: "⛏️", color: "#5d9c3a", sub: "game_sub_mc" },
+    roblox: { name: "Roblox", icon: "🎮", color: "#e2231a", sub: "game_sub" },
+    terraria: { name: "Terraria", icon: "🌳", color: "#3a7bd5", sub: "game_sub" },
+    cookie: { name: "Cookie Clicker", icon: "🍪", color: "#b5763b", sub: "game_sub_cookie" },
+    other: { name: "", icon: "🖱️", color: "#6b6b6b", sub: "game_sub" },
+  };
+  const gameName = (id) => (id === "other" ? t("game_other") : (GAMES[id] || {}).name || id);
+  let homeOpen = false, homeChecked = false;
+  function openHome() {
+    homeOpen = true;
+    $("#app").classList.add("home-open");
+    $("#home").hidden = false;
+    $("#home-btn").setAttribute("aria-current", "true");
+    $$(".preset").forEach((b) => b.setAttribute("aria-current", "false"));
+  }
+  function closeHome() {
+    if (!homeOpen) return;
+    homeOpen = false;
+    $("#app").classList.remove("home-open");
+    $("#home").hidden = true;
+    $("#home-btn").setAttribute("aria-current", "false");
+    if (!C) return;
+    $$(".preset").forEach((b) => b.setAttribute("aria-current", String(b.dataset.id === C.preset)));
+    if (!tourShown && !C.general.tutorial_done) { tourShown = true; openTour(); }
+  }
+  const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (e) { return ""; } };
+  const hue = (text) => [...text].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+  function renderHome() {
+    if (!C) return;
+    const pins = $("#pins");
+    pins.textContent = "";
+    (C.pins || []).forEach((p, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "pin"; b.title = p.url || p.app;
+      const icon = document.createElement("span");
+      icon.className = "pin-icon";
+      const letter = () => { icon.textContent = p.name.slice(0, 1).toUpperCase(); icon.style.background = `hsl(${hue(p.name)} 55% 45%)`; };
+      const host = p.url ? hostOf(p.url) : "";
+      if (host) {  // kleines Seiten-Icon; ohne Internet einfach der Anfangsbuchstabe
+        const img = document.createElement("img");
+        img.alt = ""; img.src = `https://icons.duckduckgo.com/ip3/${host}.ico`;
+        img.onerror = () => { img.remove(); letter(); };
+        icon.appendChild(img);
+      } else letter();
+      const name = document.createElement("span");
+      name.className = "pin-name"; name.textContent = p.name;
+      const del = document.createElement("span");
+      del.className = "icon-btn"; del.textContent = "✕"; del.setAttribute("role", "button");
+      del.title = t("pin_remove"); del.setAttribute("aria-label", t("pin_remove"));
+      del.addEventListener("click", (e) => { e.stopPropagation(); send("home", { op: "pin_remove", index: i }); });
+      b.append(icon, name, del);
+      b.addEventListener("click", () => send("home", { op: "open", index: i }));
+      pins.appendChild(b);
+    });
+    if ((C.pins || []).length < 12) {
+      const add = document.createElement("button");
+      add.type = "button"; add.className = "pin add";
+      add.innerHTML = '<span class="pin-icon">+</span><span class="pin-name"></span>';
+      add.lastChild.textContent = t("pin_add");
+      add.addEventListener("click", openPinDialog);
+      pins.appendChild(add);
+    }
+    const games = $("#games");
+    games.textContent = "";
+    (C.games || Object.keys(GAMES)).forEach((id) => {
+      const meta = GAMES[id] || GAMES.other;
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "game";
+      b.setAttribute("aria-pressed", String(C.general.game === id));
+      b.innerHTML = '<span class="game-icon"></span><span><b></b><small></small></span>';
+      b.querySelector(".game-icon").textContent = meta.icon;
+      b.querySelector(".game-icon").style.background = meta.color + "33";
+      b.querySelector("b").textContent = gameName(id);
+      b.querySelector("small").textContent = t(meta.sub);
+      b.addEventListener("click", () => {
+        if (C.general.game !== id) sendGeneral({ game: id });
+        closeHome();
+      });
+      games.appendChild(b);
+    });
+  }
+  $("#home-btn").addEventListener("click", () => (homeOpen ? closeHome() : openHome()));
+  $("#search-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = $("#search").value.trim();
+    if (text) send("home", { op: "open", text });
+  });
+  function openPinDialog() {
+    $("#pin-target").value = ""; $("#pin-name").value = "";
+    $("#pin-dialog").hidden = false;
+    setTimeout(() => $("#pin-target").focus(), 0);
+  }
+  $("#pin-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const st = await send("home", { op: "pin_add", target: $("#pin-target").value.trim(), name: $("#pin-name").value.trim() });
+    if (st) $("#pin-dialog").hidden = true;
+  });
+
 
   // ─── Anzeigen: Live ─────────────────────────────────────
   function renderLive() {
@@ -449,7 +571,7 @@
     send("settings", { general: part });
   }
 
-  $$(".preset").forEach((b) => b.addEventListener("click", () => send("preset", { id: b.dataset.id })));
+  $$(".preset").forEach((b) => b.addEventListener("click", () => { closeHome(); send("preset", { id: b.dataset.id }); }));
   $$("#button-seg [data-val]").forEach((b) => b.addEventListener("click", () => sendPreset({ button: b.dataset.val })));
   $$("#boost-seg [data-val]").forEach((b) => b.addEventListener("click", () => sendPreset({ boost: +b.dataset.val })));
   $("#speed").addEventListener("input", (e) => { markEdit(e.target); sendPreset({ cps: +e.target.value }); });
@@ -488,6 +610,7 @@
   function closeDialogs() {
     $("#settings").hidden = true;
     $("#kit-dialog").hidden = true;
+    $("#pin-dialog").hidden = true;
     if (recording === "learn") send("hotkeys", { op: "cancel" });
     if (!$("#hotkeys").hidden) {
       $("#hotkeys").hidden = true;
@@ -496,7 +619,7 @@
   }
   $("#settings-btn").addEventListener("click", () => { $("#settings").hidden = false; });
   $("#hotkeys-btn").addEventListener("click", () => { $("#hotkeys").hidden = false; });
-  $$("#settings, #hotkeys, #kit-dialog").forEach((ov) => ov.addEventListener("click", (e) => {
+  $$("#settings, #hotkeys, #kit-dialog, #pin-dialog").forEach((ov) => ov.addEventListener("click", (e) => {
     if (e.target === ov || e.target.closest("[data-close]")) closeDialogs();
   }));
   $("#o-learn-key").addEventListener("click", () => send("hotkeys", recording === "learn" ? { op: "cancel" } : { op: "record", target: "learn" }));
